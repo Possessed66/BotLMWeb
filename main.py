@@ -303,10 +303,30 @@ async def root(request: Request):
         return RedirectResponse(url="/login")
     return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
-# --- Страница регистрации ---
 @app.get("/register", response_class=HTMLResponse)
 async def get_register_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    html = '''
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Регистрация</title>
+        <style>body{font-family:sans-serif;max-width:400px;margin:50px auto;padding:20px;}input,button{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:1px solid #ccc;}</style>
+    </head>
+    <body>
+        <h2>Регистрация</h2>
+        <form method="post" action="/register">
+            <input type="text" name="username" placeholder="Логин" required />
+            <input type="email" name="email" placeholder="Email" required />
+            <input type="password" name="password" placeholder="Пароль" required />
+            <input type="text" name="position" placeholder="Должность" />
+            <button type="submit">Зарегистрироваться</button>
+        </form>
+        <p><a href="/login">Уже есть аккаунт? Войти</a></p>
+    </body>
+    </html>
+    '''
+    return HTMLResponse(content=html)
 
 @app.post("/register")
 async def register(username: str = Form(...), email: str = Form(...), password: str = Form(...), position: str = Form(...)):
@@ -314,7 +334,29 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
     existing_user = db.query(User).filter((User.username == username) | (User.email == email)).first()
     if existing_user:
         db.close()
-        return templates.TemplateResponse("register.html", {"request": request, "error": "Пользователь уже существует"})
+        html = '''
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <title>Регистрация</title>
+            <style>body{font-family:sans-serif;max-width:400px;margin:50px auto;padding:20px;}input,button{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:1px solid #ccc;}.error{color:red;}</style>
+        </head>
+        <body>
+            <h2>Регистрация</h2>
+            <form method="post" action="/register">
+                <input type="text" name="username" placeholder="Логин" required />
+                <input type="email" name="email" placeholder="Email" required />
+                <input type="password" name="password" placeholder="Пароль" required />
+                <input type="text" name="position" placeholder="Должность" />
+                <button type="submit">Зарегистрироваться</button>
+            </form>
+            <p class="error">Ошибка: Пользователь уже существует</p>
+            <p><a href="/login">Уже есть аккаунт? Войти</a></p>
+        </body>
+        </html>
+        '''
+        return HTMLResponse(content=html)
     
     hashed_pw = get_password_hash(password)
     new_user = User(
@@ -331,7 +373,26 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
 # --- Страница входа ---
 @app.get("/login", response_class=HTMLResponse)
 async def get_login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    html = '''
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Вход</title>
+        <style>body{font-family:sans-serif;max-width:400px;margin:50px auto;padding:20px;}input,button{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:1px solid #ccc;}</style>
+    </head>
+    <body>
+        <h2>Вход</h2>
+        <form method="post" action="/login">
+            <input type="text" name="username" placeholder="Логин" required />
+            <input type="password" name="password" placeholder="Пароль" required />
+            <button type="submit">Войти</button>
+        </form>
+        <p><a href="/register">Зарегистрироваться</a></p>
+    </body>
+    </html>
+    '''
+    return HTMLResponse(content=html)
 
 @app.post("/login")
 async def login(response: RedirectResponse, username: str = Form(...), password: str = Form(...)):
@@ -340,19 +401,33 @@ async def login(response: RedirectResponse, username: str = Form(...), password:
     db.close()
 
     if not user or not verify_password(password, user.hashed_password):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Неверные учетные данные"})
+        html = '''
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <title>Вход</title>
+            <style>body{font-family:sans-serif;max-width:400px;margin:50px auto;padding:20px;}input,button{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:1px solid #ccc;}.error{color:red;}</style>
+        </head>
+        <body>
+            <h2>Вход</h2>
+            <form method="post" action="/login">
+                <input type="text" name="username" placeholder="Логин" required />
+                <input type="password" name="password" placeholder="Пароль" required />
+                <button type="submit">Войти</button>
+            </form>
+            <p class="error">Ошибка: Неверные учетные данные</p>
+            <p><a href="/register">Зарегистрироваться</a></p>
+        </body>
+        </html>
+        '''
+        return HTMLResponse(content=html)
     
     token_data = {"sub": user.username}
     token = create_access_token(data=token_data)
     
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(key="access_token", value=token, httponly=True, max_age=1800)  # 30 мин
-    return response
-
-@app.get("/logout")
-async def logout(response: RedirectResponse):
-    response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie("access_token")
     return response
 
 # --- API: Поиск товара ---
