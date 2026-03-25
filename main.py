@@ -495,7 +495,7 @@ async def app_ui(request: Request):
         <script>
             let currentProduct = null;
 
-            async function searchProduct() {{
+            async function searchProduct() {
                 const article = document.getElementById('article').value.trim();
                 const shop = document.getElementById('shop').value.trim();
                 const errorDiv = document.getElementById('searchError');
@@ -504,22 +504,22 @@ async def app_ui(request: Request):
                 errorDiv.classList.add('hidden');
                 errorDiv.textContent = '';
 
-                if (!article || !shop) {{
+                if (!article || !shop) {
                     errorDiv.textContent = 'Заполните артикул и номер магазина';
                     errorDiv.classList.remove('hidden');
                     return;
-                }}
+                }
 
-                try {{
-                    const response = await fetch('/api/search', {{
+                try {
+                    const response = await fetch('/api/search', {
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }},
-                        body: new URLSearchParams({{ article, shop }})
-                    }});
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({ article, shop })
+                    });
 
                     const result = await response.json();
 
-                    if (response.ok && result.found) {{
+                    if (response.ok && result.found) {
                         currentProduct = result.data;
 
                         document.getElementById('pArticle').textContent = result.data['Артикул'];
@@ -535,18 +535,18 @@ async def app_ui(request: Request):
 
                         document.getElementById('productSection').classList.remove('hidden');
                         document.getElementById('orderStatus').classList.add('hidden');
-                    }} else {{
+                    } else {
                         errorDiv.textContent = result.message || 'Товар не найден';
                         errorDiv.classList.remove('hidden');
                         document.getElementById('productSection').classList.add('hidden');
-                    }}
-                }} catch (e) {{
+                    }
+                } catch (e) {
                     errorDiv.textContent = 'Ошибка соединения';
                     errorDiv.classList.remove('hidden');
-                }}
-            }}
+                }
+            }
 
-            document.getElementById('orderForm').onsubmit = async (e) => {{
+            document.getElementById('orderForm').onsubmit = async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
                 const statusDiv = document.getElementById('orderStatus');
@@ -555,38 +555,38 @@ async def app_ui(request: Request):
                 btn.disabled = true;
                 btn.textContent = 'Отправка...';
 
-                try {{
-                    const response = await fetch('/api/order', {{
+                try {
+                    const response = await fetch('/api/order', {
                         method: 'POST',
                         body: formData
-                    }});
+                    });
 
                     const result = await response.json();
 
-                    if (response.ok) {{
-                        statusDiv.innerHTML = `✅ <b>Заказ принят!</b><br> ID очереди: <code>${{result.queue_id}}</code>`;
+                    if (response.ok) {
+                        statusDiv.innerHTML = `✅ <b>Заказ принят!</b><br> ID очереди: <code>${result.queue_id}</code>`;
                         statusDiv.className = 'status success';
                         statusDiv.classList.remove('hidden');
                         
-                        setTimeout(() => {{
+                        setTimeout(() => {
                             document.getElementById('productSection').classList.add('hidden');
                             document.getElementById('article').value = '';
                             statusDiv.classList.add('hidden');
-                        }}, 3000);
-                    }} else {{
+                        }, 3000);
+                    } else {
                         statusDiv.textContent = `❌ ${result.detail || 'Ошибка создания заказа'}`;
                         statusDiv.className = 'status error';
                         statusDiv.classList.remove('hidden');
-                    }}
-                }} catch (e) {{
+                    }
+                } catch (e) {
                     statusDiv.textContent = '❌ Ошибка сети';
                     statusDiv.className = 'status error';
                     statusDiv.classList.remove('hidden');
-                }} finally {{
+                } finally {
                     btn.disabled = false;
                     btn.textContent = '✅ Подтвердить и отправить';
-                }}
-            }};
+                }
+            };
         </script>
     </body>
     </html>
