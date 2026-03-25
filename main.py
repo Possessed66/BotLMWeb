@@ -171,7 +171,7 @@ def get_supplier_data_from_db(supplier_id: str, shop: str) -> Optional[Dict[str,
     except Exception:
         # Если таблица не существует, возвращаем заглушку
         return {
- осн. пост.": supplier_id,
+            "Номер осн. пост.": supplier_id,
             "Название осн. пост.": "Не найден",
             "Срок доставки в магазин": 3,
             "День выхода заказа": 1,
