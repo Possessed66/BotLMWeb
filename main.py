@@ -18,6 +18,10 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # === КОНФИГУРАЦИЯ ===
 ALGORITHM = "HS256"
@@ -95,7 +99,7 @@ def get_current_user(token: str = None):
 
 # === ФУНКЦИИ РАБОТЫ С ТВОЕЙ СХЕМОЙ БД ===
 def get_db_connection():
-    conn = sqlite3.connect("your_existing_database.db")  # Путь к твоей существующей БД
+    conn = sqlite3.connect(/root/BotLMWeb/articles.db)  # Путь к твоей существующей БД
     conn.row_factory = sqlite3.Row  # Позволяет обращаться к колонкам по имени
     return conn
 
@@ -245,9 +249,16 @@ def process_order_queue():
             # Тут твой код из воркера
             # 1. Подключаемся к Google Sheets
             scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+            google_creds_json = os.getenv("GOOGLE_CREDENTIALS")
+            if not google_creds_json:
+                raise EnvironmentError("Переменная окружения GOOGLE_CREDENTIALS не найдена")
+
+            # Загружаем JSON из строки
+
+            creds_dict = json.loads(google_creds_json)
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             client = gspread.authorize(creds)
-            spreadsheet = client.open('Orders_Rostov')  # Имя таблицы
+            spreadsheet = client.open('Копия Заказы МЗ 0.2')  # Имя таблицы
             worksheet = spreadsheet.worksheet(order_data['department'])
 
             # 2. Находим следующую строку
