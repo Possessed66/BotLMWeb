@@ -99,7 +99,7 @@ def get_current_user(token: str = None):
 
 # === ФУНКЦИИ РАБОТЫ С ТВОЕЙ СХЕМОЙ БД ===
 def get_db_connection():
-    conn = sqlite3.connect(/root/BotLMWeb/articles.db)  # Путь к твоей существующей БД
+    conn = sqlite3.connect("/root/BotLMWeb/articles.db")  # Путь к твоей существующей БД
     conn.row_factory = sqlite3.Row  # Позволяет обращаться к колонкам по имени
     return conn
 
