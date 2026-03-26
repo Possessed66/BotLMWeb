@@ -5,6 +5,8 @@ import uuid
 import logging
 import bcrypt
 import jwt
+import pathlib
+from jinja2 import Template
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, Form, Depends
@@ -291,6 +293,15 @@ async def root(request: Request):
         return RedirectResponse(url="/app")
     return RedirectResponse(url="/app")
 
+
+
+template_path = pathlib.Path(__file__).parent / "templates" / "app.html"
+with open(template_path, 'r', encoding='utf-8') as f:
+    template_content = f.read()
+
+# Компилируем шаблон
+jinja_template = Template(template_content)
+
 @app.get("/app", response_class=HTMLResponse)
 async def app_ui(request: Request):
     token = request.cookies.get("access_token")
@@ -301,7 +312,9 @@ async def app_ui(request: Request):
         "username": user.username,
         "position": user.position or "без должности"
     }
-    return templates.TemplateResponse("app.html", {"request": request, "user": user_dict})
+    # Рендерим шаблон вручную
+    rendered_html = jinja_template.render(request=request, user=user_dict)
+    return HTMLResponse(content=rendered_html)
 
 @app.get("/login", response_class=HTMLResponse)
 async def get_login_page(request: Request):
