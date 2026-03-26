@@ -304,7 +304,7 @@ async def root(request: Request):
     token = request.cookies.get("access_token")
     user = get_current_user(token)
     if not user:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/app")
     return templates.TemplateResponse("index.html", {
     "request": request,
     "user": {
