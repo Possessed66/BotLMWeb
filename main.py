@@ -16,8 +16,8 @@ from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTa
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
-from pydantic_settings import BaseSettings, BaseModel
-from pydantic import Field, ValidationError
+from pydantic_settings import BaseSettings
+from pydantic import Field, ValidationError, BaseModel
 
 # === DATABASE ===
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, func
