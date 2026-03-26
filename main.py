@@ -4,17 +4,20 @@ import logging
 import secrets
 import bcrypt
 import jwt
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 # === FASTAPI & PYDANTIC ===
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
-from pydantic_settings import BaseSettings  # pip install pydantic-settings
-from pydantic import Field
+from pydantic_settings import BaseSettings, BaseModel
+from pydantic import Field, ValidationError
 
 # === DATABASE ===
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, func
@@ -51,7 +54,7 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
 
 settings = Settings()
-
+scheduler = AsyncIOScheduler()
 # === БАЗА ДАННЫХ ===
 engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -80,6 +83,24 @@ class OrderQueue(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
 
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    # Поля из вебхука
+    sheet_name = Column(String, nullable=False)      # Имя листа (например, '7')
+    row_number = Column(Integer, nullable=False)    # Номер строки
+    order_number = Column(String, nullable=True)    # Номер заказа (C)
+    article = Column(String, nullable=True)         # Артикул (B)
+    name = Column(String, nullable=True)            # Наименование (F)
+    order_id = Column(String, nullable=True)        # ID заказа / Причина / Экспо (P)
+    order_date = Column(String, nullable=True)      # Дата заказа (O)
+    chat_id = Column(String, nullable=True)         # ID пользователя (Q) - можно использовать для фильтрации
+    action = Column(String, nullable=False)         # 'confirmed', 'rejected', 'expo_on', 'expo_off'
+    message = Column(Text, nullable=False)          # Сгенерированное сообщение
+    # Системные поля
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False) 
+    
 # === ИНИЦИАЛИЗАЦИЯ БАЗЫ ===
 Base.metadata.create_all(bind=engine)
 
@@ -87,6 +108,19 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Ростовский Бот — Веб-версия", version="2.0.0")
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# === Классы вне логики ===
+
+class OrderNotification(BaseModel):
+    sheet_name: str
+    row_number: int
+    order_number: str
+    article: str
+    name: str
+    order_id: str 
+    order_date: str 
+    chat_id: str 
+    action: str 
 
 # === ФУНКЦИИ АВТОРИЗАЦИИ ===
 def verify_password(plain_password, hashed_password):
@@ -123,6 +157,24 @@ def get_current_user(token: str = None):
     user = db.query(User).filter(User.username == username).first()
     db.close()
     return user
+
+def run_process_order_queue():
+    """Обёртка для запуска воркера в синхронном контексте"""
+    # Создаём новый event loop для вызова асинхронной функции
+    # Это не идеально, но подходит для таких задач
+    # В идеале, сама process_order_queue должна быть асинхронной
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        # Импортируем внутри, чтобы не было циклической зависимости
+        from main import process_order_queue
+        process_order_queue()
+    except Exception as e:
+        logger.error(f"Ошибка в scheduled process_order_queue: {e}")
+    finally:
+        loop.close()
+
+scheduler.add_job(run_process_order_queue, trigger=IntervalTrigger(seconds=120), id='process_orders')
 
 # === РАБОТА С СУЩЕСТВУЮЩЕЙ БАЗОЙ (SQLAlchemy raw SQL для совместимости) ===
 from sqlalchemy import create_engine as raw_engine, text
@@ -402,9 +454,195 @@ async def create_order(
 
     return {"status": "queued", "queue_id": queue_entry.id}
 
-# --- Запуск воркера (временно ручной эндпоинт для теста) ---
-@app.get("/run_worker")
-async def run_worker():
-    # Только для тестирования, не использовать в проде без защиты!
-    process_order_queue()
+@app.get("/api/notifications")
+async def get_notifications(
+    limit: int = Query(20, ge=1, le=100),           # Сколько вернуть
+    offset: int = Query(0, ge=0),                   # Смещение
+    unread_only: bool = Query(False),               # Только непрочитанные
+    access_token: str = Cookie(None)                # Авторизация
+):
+    user = get_current_user(access_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    db = SessionLocal()
+
+    query = db.query(Notification)
+
+    # Фильтр по непрочитанным
+    if unread_only:
+        query = query.filter(Notification.is_read == False)
+
+    # Фильтр по пользователю (если chat_id в уведомлении соответствует user.id или user.username)
+    # В текущем примере, мы просто покажем все уведомления, но можно добавить фильтр:
+    # query = query.filter(Notification.chat_id == str(user.id)) # или user.username
+
+    # Сортировка по дате (новые первыми)
+    query = query.order_by(Notification.created_at.desc())
+
+    # Применяем лимит и смещение
+    notifications = query.offset(offset).limit(limit).all()
+
+    # Формируем ответ
+    result = []
+    for n in notifications:
+        result.append({
+            "id": n.id,
+            "sheet_name": n.sheet_name,
+            "row_number": n.row_number,
+            "order_number": n.order_number,
+            "article": n.article,
+            "name": n.name,
+            "order_id": n.order_id,
+            "order_date": n.order_date,
+            "chat_id": n.chat_id,
+            "action": n.action,
+            "message": n.message,
+            "created_at": n.created_at.isoformat(),
+            "is_read": n.is_read
+        })
+
+    total_count = db.query(Notification).count() # Общее количество для пагинации
+    db.close()
+    return {"notifications": result, "total_count": total_count}
+
+# --- API: Отметить уведомления как прочитанные ---
+@app.post("/api/notifications/read")
+async def mark_notifications_read(
+    notification_ids: list[int],                     # Принимаем список ID
+    access_token: str = Cookie(None)                # Авторизация
+):
+    user = get_current_user(access_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    if not notification_ids:
+        return {"status": "nothing_to_update"}
+
+    db = SessionLocal()
+    try:
+        # Обновляем статус на "прочитано" для указанных ID
+        rows_updated = db.query(Notification).filter(
+            Notification.id.in_(notification_ids)
+        ).update({"is_read": True}, synchronize_session=False)
+        db.commit()
+        return {"status": "ok", "updated_count": rows_updated}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Ошибка обновления статуса уведомлений: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        db.close()
+
+
+# --- Уведомления ---
+class OrderNotification(BaseModel):
+    sheet_name: str
+    row_number: int
+    order_number: str
+    article: str
+    name: str
+    order_id: str
+    order_date: str
+    chat_id: str # или int, в зависимости от того, как ты хранишь
+
+# --- ФУНКЦИИ ДЛЯ ОПРЕДЕЛЕНИЯ ТИПА УВЕДОМЛЕНИЯ ---
+def determine_action(notification: OrderNotification) -> str:
+    order_id_str = str(notification.order_id).lower().strip()
+    order_number_str = str(notification.order_number).lower().strip()
+
+    rejection_keywords = ['отказ', 'нет', 'не буду', 'отклон', 'отмен', 'не подтверждаю']
+    expo_keywords = {
+        'on': ['поставить на экспо', 'на экспо'],
+        'off': ['снять с экспо']
+    }
+
+    if any(keyword in order_id_str for keyword in rejection_keywords):
+        return 'rejected'
+    elif any(keyword in order_number_str for keyword in expo_keywords['on']):
+        return 'expo_on'
+    elif any(keyword in order_number_str for keyword in expo_keywords['off']):
+        return 'expo_off'
+    else:
+        return 'confirmed'
+
+# --- ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ СООБЩЕНИЯ ---
+def generate_notification_message(notification: OrderNotification, action: str) -> str:
+    article = notification.article
+    name = notification.name
+    order_num = notification.order_number
+
+    if action == 'expo_on':
+        return f"📦 Артикул: {article}\n🏷️ Наименование: {name}\n✅ Поставлено на экспозицию"
+    elif action == 'expo_off':
+        return f"📦 Артикул: {article}\n🏷️ Наименование: {name}\n❌ Снято с экспозиции"
+    elif action == 'rejected':
+        reason = notification.order_id
+        return f"❌ Ваш заказ {order_num} не может быть выполнен.\n📦 Артикул: {article}\n🏷️ Наименование: {name}\n💬 Причина: {reason}"
+    else: # confirmed
+        comment = notification.order_id
+        return f"✅ Ваш заказ №{order_num} оформлен!\n📦 Артикул: {article}\n🏷️ Наименование: {name}\n🔢 Комментарий: {comment or '—'}"
+
+# --- ЭНДПОИНТ ВЕБХУКА ---
+@app.post("/webhook/orders")
+async def webhook_orders(request: Request):
+    """
+    Вебхук для получения уведомлений из Google Apps Script.
+    Ожидает JSON с информацией о заказе и действии.
+    """
+    try:
+        payload = await request.json()
+        logger.info(f"Получено уведомление: {payload}")
+
+        notification_data = OrderNotification.model_validate(payload)
+
+        # Определяем тип действия
+        action = determine_action(notification_data)
+
+        # Генерируем сообщение
+        message = generate_notification_message(notification_data, action)
+
+        # --- СОХРАНЕНИЕ В БАЗУ ---
+        db = SessionLocal()
+        new_notification = Notification(
+            sheet_name=notification_data.sheet_name,
+            row_number=notification_data.row_number,
+            order_number=notification_data.order_number,
+            article=notification_data.article,
+            name=notification_data.name,
+            order_id=notification_data.order_id,
+            order_date=notification_data.order_date,
+            chat_id=notification_data.chat_id, # Можно хранить ID пользователя, если привязка нужна
+            action=action,
+            message=message
+        )
+        db.add(new_notification)
+        db.commit()
+        db.refresh(new_notification)
+        db.close()
+
+        logger.info(f"Уведомление сохранено в базу: {new_notification.id}")
+
+        return {"status": "ok", "processed": True, "notification_id": new_notification.id}
+
+    except json.JSONDecodeError:
+        logger.error("Неверный JSON в теле запроса")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    except ValidationError as ve:
+        logger.error(f"Ошибка валидации: {ve}")
+        raise HTTPException(status_code=400, detail="Validation error")
+    except Exception as e:
+        logger.error(f"Ошибка обработки вебхука: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# --- START/SHUTDOWN EVENTS ---
+@app.on_event("startup")
+async def startup_event():
+    scheduler.start()
+    logger.info("Scheduler started.")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown()
+    logger.info("Scheduler shut down.")
     return {"status": "ok"}
