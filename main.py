@@ -496,6 +496,7 @@ async def app_ui(request: Request):
     if not user:
         return RedirectResponse(url="/login")
 
+    # Преобразуем user в словарь
     user_dict = {
         "username": user.username,
         "position": user.position or "без должности"
@@ -513,7 +514,7 @@ async def app_ui(request: Request):
             body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: var(--bg); color: #1e293b; }}
             .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1; }}
             .card {{ background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-            h2 {{ margin: 0 0 16px; font-size: 1.25rem; color: #0f172a; }}
+            h 0 0 16px; font-size: 1.25rem; color: #0f172a; }}
             .form-group {{ margin-bottom: 16px; }}
             label {{ display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }}
             input, select {{ width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }}
@@ -535,7 +536,7 @@ async def app_ui(request: Request):
             <h1>🛒 Ростовский Бот</h1>
             <a href="/logout"><button style="width:auto; padding: 8px 16px;">Выйти</button></a>
         </div>
-        <p>Добро пожаловать, <strong>{user.username}</strong> ({user.position or 'без должности'})</p>
+        <p>Добро пожаловать, <strong>{user_dict["username"]}</strong> ({user_dict["position"]})</p>
 
         <div class="card">
             <h2>🔍 Найти товар</h2>
@@ -600,11 +601,13 @@ async def app_ui(request: Request):
                 }}
 
                 try {{
-                    const params = new URLSearchParams({ article, shop });
-                    const response = await fetch(`/api/search?${params}`, {
+                    // --- ИСПРАВЛЕНО: параметры в URL ---
+                    const params = new URLSearchParams({{ article, shop }}); // <-- Удвоены скобки
+                    const response = await fetch(`/api/search?${{params}}`, {{ // <-- Удвоены скобки
                         method: 'POST',
-                    });
-                    
+                        // headers и body не нужны для query параметров
+                    }});
+
                     const result = await response.json();
 
                     if (response.ok && result.found) {{
@@ -629,7 +632,7 @@ async def app_ui(request: Request):
                         document.getElementById('productSection').classList.add('hidden');
                     }}
                 }} catch (e) {{
-                    console.error("Ошибка при поиске:", e);
+                    console.error("Ошибка при поиске:", e); // <-- Добавлено для отладки
                     errorDiv.textContent = 'Ошибка соединения';
                     errorDiv.classList.remove('hidden');
                 }}
