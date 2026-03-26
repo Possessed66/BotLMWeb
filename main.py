@@ -7,7 +7,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, Request, HTTPException, Form, Depends
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
