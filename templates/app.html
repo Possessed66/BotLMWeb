@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
     <title>Ростовский Бот</title>
     <style>
         :root {
@@ -29,8 +29,6 @@
             background-color: var(--bg);
             color: var(--text);
             line-height: 1.6;
-            padding: 0;
-            margin: 0;
         }
 
         .container {
@@ -66,6 +64,7 @@
             font-size: 1rem;
             color: var(--text-muted);
             margin-top: 8px;
+            text-align: center;
         }
 
         .card {
@@ -117,7 +116,7 @@
             padding: 12px 20px;
             border-radius: 8px;
             font-size: 1rem;
-            font-weight: 500;
+           -weight: 500;
             cursor: pointer;
             width: 100%;
             transition: background 0.2s;
@@ -134,7 +133,7 @@
 
         .btn-secondary {
             background: #6b7280;
-            margin-top: 8px;
+            margin-top: 12px;
         }
 
         .btn-secondary:hover {
@@ -167,7 +166,7 @@
 
         .info-label {
             color: var(--text-muted);
-            display: flex;
+ display: flex;
             align-items: center;
             gap: 6px;
         }
@@ -190,19 +189,13 @@
         .status.success {
             background: #ecfdf5;
             color: #065f46;
-            border-left: 4px solid var(--success);
+            border-left: 4px(--success);
         }
 
         .status.error {
             background: #fef2f2;
             color: #991b1b;
             border-left: 4px solid var(--error);
-        }
-
-        .status.warning {
-            background: #fffbeb;
-            color: #92400e;
-            border-left: 4px solid var(--warning);
         }
 
         .hidden {
@@ -216,6 +209,68 @@
             margin-top: 32px;
             padding-top: 16px;
             border-top: 1px solid var(--border);
+        }
+
+        /* === АДАПТАЦИЯ ПОД МОБИЛЬНЫЕ УСТРОЙСТВА === */
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            h2 {
+                font-size: 1.1rem;
+            }
+
+            .form-group input,
+            .form-group select {
+                padding: 8px 10px;
+                font-size: 0.95rem;
+            }
+
+            .info-row {
+                flex-direction: column;
+                gap: 6px;
+                padding: 8px 0;
+                border-bottom: none;
+            }
+
+            .info-label {
+                margin-bottom: 2px;
+                font-weight: 500;
+            }
+
+            .info-value {
+                font-weight: 600;
+            }
+
+            button {
+                padding: 10px 16px;
+                font-size: 0.95rem;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: stretch;
+            }
+
+            .welcome {
+                text-align: center;
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.3rem;
+            }
+            .info-row {
+                font-size: 0.9rem;
+            }
         }
     </style>
 </head>
@@ -291,16 +346,15 @@
             </form>
 
             <div id="orderStatus" class="status hidden"></div>
-            <button id="newOrderBtn" class="btn-secondary" style="display:none;" onclick="resetForm()">🔄 Новый заказ</button>
+            <button id="newOrderBtn" class="btn-secondary hidden" onclick="resetForm()">🔄 Новый заказ</button>
         </div>
 
- <div class="footer-note">
+        <div class="footer-note">
             Заказы обрабатываются фоновым воркером. Убедитесь, что он запущен.
         </div>
     </div>
 
     <script>
-        // Получение куки (для авторизации)
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
@@ -323,10 +377,7 @@
             const shop = document.getElementById('shop').value.trim();
 
             const errorDiv = document.getElementById('searchError');
-            const btn = document.querySelector('#productSection ~ .card button');
-
             errorDiv.classList.add('hidden');
-            errorDiv.textContent = '';
 
             if (!article || !shop) {
                 errorDiv.textContent = '⚠️ Заполните артикул и номер магазина';
@@ -368,7 +419,8 @@
 
                     document.getElementById('productSection').classList.remove('hidden');
                     document.getElementById('orderStatus').classList.add('hidden');
-                    document.getElementById('newOrderBtn').style.display = 'none';
+                    document.getElementById('newOrderBtn').classList.add('hidden');
+                    document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
                 } else {
                     errorDiv.innerHTML = `🔍 ${result.message || 'Товар не найден'}`;
                     errorDiv.classList.remove('hidden');
@@ -385,11 +437,11 @@
             e.preventDefault();
             const formData = new FormData(e.target);
             const statusDiv = document.getElementById('orderStatus');
-            const btn = e.submitter;
+            const submitBtn = e.submitter;
             const newOrderBtn = document.getElementById('newOrderBtn');
 
-            btn.disabled = true;
-            btn.textContent = '⏳ Отправка...';
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Отправка...';
 
             try {
                 const token = getCookie("access_token");
@@ -419,12 +471,14 @@
                 if (response.ok) {
                     statusDiv.innerHTML = `
                         ✅ <strong>Заказ принят!</strong><br>
-                        ID очереди: <code>${result.queue_id}</code><br>
-                        Статус: <span style="color:${result.status === 'queued' ? '#10b981' : '#f59e0b'}">${result.status}</span>
+                        ID очереди: <code>${result.queue_id}</code>
                     `;
                     statusDiv.className = 'status success';
                     statusDiv.classList.remove('hidden');
-                    newOrderBtn.style.display = 'block';
+
+                    // Скрываем кнопку формы, показываем "Новый заказ"
+                    submitBtn.style.display = 'none';
+                    newOrderBtn.classList.remove('hidden');
                 } else {
                     statusDiv.textContent = `❌ ${result.detail || 'Ошибка создания заказа'}`;
                     statusDiv.className = 'status error';
@@ -436,8 +490,8 @@
                 statusDiv.className = 'status error';
                 statusDiv.classList.remove('hidden');
             } finally {
-                btn.disabled = false;
-                btn.textContent = '✅ Подтвердить и отправить';
+                submitBtn.disabled = false;
+                submitBtn.textContent = '✅ Подтвердить и отправить';
             }
         };
 
@@ -452,7 +506,8 @@
             document.getElementById('pOrderDate').textContent = '';
             document.getElementById('pDeliveryDate').textContent = '';
             document.getElementById('orderStatus').classList.add('hidden');
-            document.getElementById('newOrderBtn').style.display = 'none';
+            document.getElementById('newOrderBtn').classList.add('hidden');
+            document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
             document.getElementById('orderForm').reset();
         }
 
