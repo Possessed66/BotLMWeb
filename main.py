@@ -383,7 +383,7 @@ async def login(response: RedirectResponse, username: str = Form(...), password:
     token = create_access_token(data=token_data)
 
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(key="access_token", value=token, httponly=True, max_age=1800)
+    response.set_cookie(key="access_token", value=token, httponly=False, secure=False, samesite="lax", max_age=1800)
     return response
 
 @app.get("/register", response_class=HTMLResponse)
