@@ -38,6 +38,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # === КОНФИГУРАЦИЯ ===
+GOOGLE_CREDENTIALS_VALUE = os.getenv("GOOGLE_CREDENTIALS")
+
+
 class Settings(BaseSettings):
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     ALGORITHM: str = "HS256"
@@ -256,7 +259,7 @@ def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) ->
 
 
 # === ВОРКЕР (пока ручной запуск) ===
-def process_order_queue():
+def process_order_queue(google_creds_json: str = GOOGLE_CREDENTIALS_VALUE):
     """Функция для фонового запуска (например, через Celery или cron)"""
     db = SessionLocal()
     pending_orders = db.query(OrderQueue).filter(OrderQueue.status == 'pending').limit(5).all()
@@ -274,7 +277,7 @@ def process_order_queue():
             # Тут твой код из воркера
             # 1. Подключаемся к Google Sheets
             scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            google_creds_json = os.getenv("GOOGLE_CREDENTIALS")
+            
             if not google_creds_json:
                 raise EnvironmentError("Переменная окружения GOOGLE_CREDENTIALS не найдена")
 
