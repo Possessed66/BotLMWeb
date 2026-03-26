@@ -452,7 +452,7 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
 security = HTTPBearer()
 
 @app.post("/api/search")
-async def search_article(article: str, shop: str, credentials: HTTPBearer = Depends(security)):
+async def search_article(article: str = Form(...), shop: str = Form(...), credentials: HTTPBearer = Depends(security)):
     token = credentials.credentials
     user = get_current_user(token)
     if not user:
