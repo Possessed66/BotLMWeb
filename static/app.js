@@ -1,47 +1,29 @@
-// Вспомогательная функция для получения куки по имени
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
+// === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
 let currentProduct = null;
 
+// === ФУНКЦИЯ: Поиск товара ===
 async function searchProduct() {
     const article = document.getElementById('article').value.trim();
     const shop = document.getElementById('shop').value.trim();
 
     const errorDiv = document.getElementById('searchError');
-    const btn = document.querySelector('#productSection ~ .card button'); // Кнопка "Найти товар"
-
     errorDiv.classList.add('hidden');
-    errorDiv.textContent = '';
 
     if (!article || !shop) {
-        errorDiv.textContent = 'Заполните артикул и номер магазина';
+        errorDiv.textContent = '⚠️ Заполните артикул и номер магазина';
         errorDiv.classList.remove('hidden');
         return;
     }
 
     try {
-        const token = getCookie("access_token");
-
+        // Отправляем запрос с куками (включая HttpOnly)
         const response = await fetch('/api/search', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Bearer ${token}` // <-- Отправляем токен в заголовке
+                'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: new URLSearchParams({ article, shop })
+            body: new URLSearchParams({ article, shop }),
+            credentials: 'include'  // 🔑 Обязательно! Чтобы браузер отправил куку access_token
         });
 
         const result = await response.json();
@@ -49,47 +31,45 @@ async function searchProduct() {
         if (response.ok && result.found) {
             currentProduct = result.data;
 
-            document.getElementById('pArticle').textContent = result.data['Артикул'];
-            document.getElementById('pName').textContent = result.data['Название'];
-            document.getElementById('pDepartment').textContent = result.data['Отдел'];
-            document.getElementById('pSupplier').textContent = result.data['Поставщик'];
-            document.getElementById('pOrderDate').textContent = result.data['Дата заказа'];
-            document.getElementById('pDeliveryDate').textContent = result.data['Дата поставки'];
+            document.getElementById('pArticle').textContent = result.data['Артикул'] || '—';
+            document.getElementById('pName').textContent = result.data['Название'] || '—';
+            document.getElementById('pDepartment').textContent = result.data['Отдел'] || '—';
+            document.getElementById('pSupplier').textContent = result.data['Поставщик'] || '—';
+            document.getElementById('pOrderDate').textContent = result.data['Дата заказа'] || '—';
+            document.getElementById('pDeliveryDate').textContent = result.data['Дата поставки'] || '—';
 
-            document.getElementById('formShop').value = result.data['Магазин'];
-            document.getElementById('formArticle').value = result.data['Артикул'];
-            document.getElementById('formDepartment').value = result.data['Отдел'];
+            document.getElementById('formShop').value = result.data['Магазин'] || '';
+            document.getElementById('formArticle').value = result.data['Артикул'] || '';
+            document.getElementById('formDepartment').value = result.data['Отдел'] || '';
 
             document.getElementById('productSection').classList.remove('hidden');
             document.getElementById('orderStatus').classList.add('hidden');
+            document.getElementById('newOrderBtn').classList.add('hidden');
+            document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
         } else {
-            errorDiv.textContent = result.message || 'Товар не найден';
+            errorDiv.innerHTML = `🔍 ${result.message || 'Товар не найден'}`;
             errorDiv.classList.remove('hidden');
             document.getElementById('productSection').classList.add('hidden');
         }
     } catch (e) {
-        console.error("Ошибка при поиске:", e);
-        errorDiv.textContent = 'Ошибка соединения';
+        console.error('Ошибка поиска:', e);
+        errorDiv.textContent = '🌐 Ошибка соединения с сервером';
         errorDiv.classList.remove('hidden');
     }
 }
 
-document.getElementById('orderForm').onsubmit = async (e) => {
+// === ФУНКЦИЯ: Отправка заказа ===
+document.getElementById('orderForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
     const statusDiv = document.getElementById('orderStatus');
-    const btn = e.submitter;
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const newOrderBtn = document.getElementById('newOrderBtn');
 
-    btn.disabled = true;
-    btn.textContent = 'Отправка...';
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Отправка...';
 
     try {
-        const token = getCookie("access_token"); // <-- Получаем токен и для отправки заказа
-
-        // Для отправки заказа нам нужно добавить токен в заголовок.
-        // FormData не позволяет добавить заголовки напрямую.
-        // Поэтому преобразуем FormData в объект и отправим как form-encoded с заголовком.
-
+        const formData = new FormData(e.target);
         const formObj = {};
         for (const [key, value] of formData.entries()) {
             formObj[key] = value;
@@ -98,46 +78,59 @@ document.getElementById('orderForm').onsubmit = async (e) => {
         const response = await fetch('/api/order', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Bearer ${token}` // <-- Отправляем токен и тут
+                'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: new URLSearchParams(formObj)
+            body: new URLSearchParams(formObj),
+            credentials: 'include'  // 🔑 Обязательно!
         });
 
         const result = await response.json();
 
         if (response.ok) {
-            statusDiv.innerHTML = `✅ <b>Заказ принят!</b><br> ID очереди: <code>${result.queue_id}</code>`;
+            statusDiv.innerHTML = `
+                ✅ <strong>Заказ принят!</strong><br>
+                ID очереди: <code>${result.queue_id}</code>
+            `;
             statusDiv.className = 'status success';
             statusDiv.classList.remove('hidden');
 
-            setTimeout(() => {
-                document.getElementById('productSection').classList.add('hidden');
-                document.getElementById('article').value = '';
-                statusDiv.classList.add('hidden');
-            }, 3000);
+            // Скрываем кнопку формы, показываем "Новый заказ"
+            submitBtn.style.display = 'none';
+            newOrderBtn.classList.remove('hidden');
         } else {
             statusDiv.textContent = `❌ ${result.detail || 'Ошибка создания заказа'}`;
             statusDiv.className = 'status error';
             statusDiv.classList.remove('hidden');
         }
     } catch (e) {
-        console.error("Ошибка при отправке заказа:", e);
-        statusDiv.textContent = '❌ Ошибка сети';
+        console.error('Ошибка отправки заказа:', e);
+        statusDiv.textContent = '❌ Сетевая ошибка. Проверьте подключение.';
         statusDiv.className = 'status error';
         statusDiv.classList.remove('hidden');
     } finally {
-        btn.disabled = false;
-        btn.textContent = '✅ Подтвердить и отправить';
+        submitBtn.disabled = false;
+        submitBtn.textContent = '✅ Подтвердить и отправить';
     }
-};
+});
 
-// Поиск по Enter
+// === ФУНКЦИЯ: Сброс формы (Новый заказ) ===
+function resetForm() {
+    document.getElementById('productSection').classList.add('hidden');
+    document.getElementById('article').value = '';
+    document.getElementById('shop').value = '';
+    document.getElementById('pArticle').textContent = '';
+    document.getElementById('pName').textContent = '';
+    document.getElementById('pDepartment').textContent = '';
+    document.getElementById('pSupplier').textContent = '';
+    document.getElementById('pOrderDate').textContent = '';
+    document.getElementById('pDeliveryDate').textContent = '';
+    document.getElementById('orderStatus').classList.add('hidden');
+    document.getElementById('newOrderBtn').classList.add('hidden');
+    document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
+    document.getElementById('orderForm').reset();
+}
+
+// === Обработчик Enter для поиска ===
 document.getElementById('article').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchProduct();
 });
-
-// Выход
-document.querySelector('.header a').onclick = () => {
-    document.cookie = "access_token=; Max-Age=0; path=/";
-};
