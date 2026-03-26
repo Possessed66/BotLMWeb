@@ -389,6 +389,24 @@
                     console.log("DEBUG: result.data:", result.data);
                     console.log("DEBUG: result.data['Артикул']:", result.data['Артикул']); 
 
+
+                    console.log("DEBUG: result.", result.data);
+                    console.log("DEBUG: result.data['Артикул']:", result.data['Артикул']);
+
+                    const articleElement = document.getElementById('pArticle');
+                    console.log("DEBUG: Found element #pArticle:", articleElement); // <-- Добавим эту строку
+
+                    const articleValue = result.data['Артикул'];
+                    console.log("DEBUG: Value to set:", articleValue); // <-- И эту
+
+
+                    if (articleElement) {
+                        articleElement.textContent = articleValue || '—';
+                        console.log("DEBUG: Successfully set textContent to:", articleElement.textContent); // <-- И эту
+                    } else {
+                            console.error("ERROR: Element #pArticle not found!"); // <-- Или эту
+                    }
+                    
                     document.getElementById('pArticle').textContent = result['Артикул'] || '—';
                     document.getElementById('pName').textContent = result.data['Название'] || '—';
                     document.getElementById('pDepartment').textContent = result.data['Отдел'] || '—';
