@@ -6,7 +6,7 @@ import logging
 import bcrypt
 import jwt
 import pathlib
-from jinja2 import Template
+from jinja2 import Template, Environment, FileSystemLoader
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, Form, Depends
@@ -299,6 +299,8 @@ template_path = pathlib.Path(__file__).parent / "templates" / "app.html"
 with open(template_path, 'r', encoding='utf-8') as f:
     template_content = f.read()
 
+
+templates_env = Environment(loader=FileSystemLoader("templates"))
 # Компилируем шаблон
 jinja_template = Template(template_content)
 
@@ -312,8 +314,12 @@ async def app_ui(request: Request):
         "username": user.username,
         "position": user.position or "без должности"
     }
-    # Передаём request и user в шаблон
-    rendered_html = jinja_template.render(request=request, user=user_dict)
+
+    # Загружаем шаблон *внутри* функции
+    template = templates_env.get_template("app.html")
+
+    # Рендерим с явной передачей request и url_for
+    rendered_html = template.render(request=request, user=user_dict, url_for=request.url_for)
     return HTMLResponse(content=rendered_html)
 
 @app.get("/login", response_class=HTMLResponse)
