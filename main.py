@@ -259,8 +259,11 @@ def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) ->
 
 
 # === ВОРКЕР (пока ручной запуск) ===
-def process_order_queue(google_creds_json: str = GOOGLE_CREDENTIALS_VALUE):
+def process_order_queue():
     """Функция для фонового запуска (например, через Celery или cron)"""
+
+    load_dotenv('secret.env')
+    google_creds_json = os.getenv("GOOGLE_CREDENTIALS")
     db = SessionLocal()
     pending_orders = db.query(OrderQueue).filter(OrderQueue.status == 'pending').limit(5).all()
 
@@ -284,7 +287,7 @@ def process_order_queue(google_creds_json: str = GOOGLE_CREDENTIALS_VALUE):
             creds_dict = json.loads(google_creds_json)
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             client = gspread.authorize(creds)
-            spreadsheet = client.open(settings.GOOGLE_SPREADSHEET_NAME) # <-- settings.GOOGLE_SPREADSHEET_NAME = "Копия Заказы МЗ 0.2"
+            spreadsheet = client.open(settings.GOOGLE_SPREADSHEET_NAME)
 
             # --- ПРОВЕРКА ИМЕНИ ЛИСТА ---
             dept = order_data['department']
