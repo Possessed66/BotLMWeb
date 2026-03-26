@@ -39,8 +39,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     DATABASE_URL: str = "sqlite:///./database.db"
-    # Путь к твоей существующей БД (таблицы articles, даты и т.д.)
-    EXISTING_DB_PATH: str = "./existing_articles.db"
+    EXISTING_DB_PATH: str = "./articles.db"
     # Имя Google Таблицы
     GOOGLE_SPREADSHEET_NAME: str = "Копия Заказы МЗ 0.2"
     # Переменная с JSON-ключом
