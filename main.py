@@ -84,16 +84,21 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 def decode_access_token(token: str):
     try:
+        # Проверяем, не пустой ли токен
+        if not token:
+            return None
+
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             return None
         return username
-    except jwt.JWTError:
+    # Правильный класс исключения для PyJWT
+    except jwt.exceptions.PyJWTError: # <-- Вот тут ошибка
         return None
 
 def get_current_user(token: str = None):
-    if not token:
+    if not token: # <-- Если token None или пустой
         return None
     username = decode_access_token(token)
     if not username:
