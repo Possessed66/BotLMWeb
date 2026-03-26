@@ -359,16 +359,27 @@ async def login(response: RedirectResponse, username: str = Form(...), password:
         max_age=1800    # 30 минут
     )
     return response
+    
 
 @app.get("/logout")
 async def logout(response: RedirectResponse):
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key="access_token")
     return response
+    
 
 @app.get("/register", response_class=HTMLResponse)
 async def get_register_page(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
+    
+
+@app.get("/notifications", response_class=HTMLResponse)
+async def show_notifications(request: Request, access_token: str = Cookie(None)):
+    user = get_current_user(access_token)
+    if not user:
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse("notifications.html", {"request": request, "user": {"username": user.username}})
+
 
 @app.post("/register")
 async def register(username: str = Form(...), email: str = Form(...), password: str = Form(...), position: str = Form(...)):
