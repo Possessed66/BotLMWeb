@@ -88,7 +88,7 @@ templates = Jinja2Templates(directory="templates")
 
 # === ФУНКЦИИ АВТОРИЗАЦИИ ===
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode(utf-.encode('utf-8'))
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def get_password_hash(password):
     # Увеличим rounds для большей стойкости (по умолчанию 12)
