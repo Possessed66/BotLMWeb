@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles 
 from pydantic_settings import BaseSettings  # pip install pydantic-settings
 from pydantic import Field
 
@@ -85,6 +86,7 @@ Base.metadata.create_all(bind=engine)
 # === FASTAPI ===
 app = FastAPI(title="Ростовский Бот — Веб-версия", version="2.0.0")
 templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # === ФУНКЦИИ АВТОРИЗАЦИИ ===
 def verify_password(plain_password, hashed_password):
