@@ -5,6 +5,7 @@ import secrets
 import bcrypt
 import jwt
 import asyncio
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
