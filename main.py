@@ -257,26 +257,43 @@ def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) ->
 
 # === ВОРКЕР (пока ручной запуск) ===
 def process_order_queue():
-    """Функция для фонового запуска"""
+    """Функция для фонового запуска (например, через Celery или cron)"""
     db = SessionLocal()
     pending_orders = db.query(OrderQueue).filter(OrderQueue.status == 'pending').limit(5).all()
 
     for order_item in pending_orders:
         order_id = order_item.id
         user_id = order_item.user_id
-        order_data = json.loads(order_item.order_data)
+        order_data_str = order_item.order_data  # <-- Получаем строку
 
         try:
-            # Подключение к Google Sheets
+            # ДЕСЕРИАЛИЗАЦИЯ
+            order_data = json.loads(order_data_str) # <-- Ошибка может быть здесь, если строка испорчена
+            logger.info(f"Обработка заказа {order_id}: {order_data}")
+
+            # Тут твой код из воркера
+            # 1. Подключаемся к Google Sheets
             scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            creds_dict = json.loads(settings.GOOGLE_CREDENTIALS_JSON)
+            google_creds_json = os.getenv("GOOGLE_CREDENTIALS")
+            if not google_creds_json:
+                raise EnvironmentError("Переменная окружения GOOGLE_CREDENTIALS не найдена")
+
+            creds_dict = json.loads(google_creds_json)
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             client = gspread.authorize(creds)
-            spreadsheet = client.open(settings.GOOGLE_SPREADSHEET_NAME)
-            worksheet = spreadsheet.worksheet(order_data['department'])
+            spreadsheet = client.open(settings.GOOGLE_SPREADSHEET_NAME) # <-- settings.GOOGLE_SPREADSHEET_NAME = "Копия Заказы МЗ 0.2"
 
+            # --- ПРОВЕРКА ИМЕНИ ЛИСТА ---
+            dept = order_data['department']
+            logger.info(f"Поиск листа с именем: '{dept}'")
+            worksheet = spreadsheet.worksheet(dept) # <-- Ошибка может быть здесь, если лист не найден
+            logger.info(f"Лист найден: {worksheet.title}")
+
+            # 2. Находим следующую строку
             next_row = len(worksheet.col_values(1)) + 1
+            logger.info(f"Следующая строка для записи: {next_row}")
 
+            # 3. Формируем обновления (как в твоём коде)
             updates = [
                 {'range': f'A{next_row}', 'values': [[order_data['selected_shop']]]},
                 {'range': f'B{next_row}', 'values': [[int(order_data['article'])]]},
@@ -286,21 +303,47 @@ def process_order_queue():
                 {'range': f'K{next_row}', 'values': [[int(order_data['quantity'])]]},
                 {'range': f'R{next_row}', 'values': [[user_id]]}
             ]
-            worksheet.batch_update(updates)
 
+            # --- ПРОВЕРКА ОБНОВЛЕНИЯ ---
+            logger.info(f"Отправка обновлений: {updates}")
+            result_of_update = worksheet.batch_update(updates) # <-- ОШИБКА ВОЗНИКАЕТ ЗДЕСЬ
+            logger.info(f"Результат batch_update: {result_of_update}") # <-- Вот тут может быть пусто
+
+            # 4. Обновляем статус
             order_item.status = 'completed'
             order_item.processed_at = datetime.utcnow()
             db.commit()
             logger.info(f"Заказ {order_id} успешно обработан и записан в Google Таблицу.")
 
+        except json.JSONDecodeError as je:
+            logger.error(f"Ошибка декодирования JSON в заказе {order_id}: {je}. Данные: {order_data_str}")
+            order_item.status = 'failed'
+            order_item.error_message = f"JSONDecodeError: {str(je)}"
+            order_item.attempt_count += 1
+            db.commit()
+
+        except gspread.WorksheetNotFound as we:
+            logger.error(f"Лист '{dept}' не найден в таблице '{settings.GOOGLE_SPREADSHEET_NAME}'. Заказ {order_id}. {we}")
+            order_item.status = 'failed'
+            order_item.error_message = f"WorksheetNotFound: {str(we)}"
+            order_item.attempt_count += 1
+            db.commit()
+
+        except gspread.GSpreadException as ge:
+            # Любая ошибка gspread, включая ошибки API
+            logger.error(f"gspread ошибка при обработке заказа {order_id}: {ge}")
+            order_item.status = 'failed'
+            order_item.error_message = f"gspread error: {str(ge)}"
+            order_item.attempt_count += 1
+            db.commit()
+
         except Exception as e:
-            logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
+            # Любая другая ошибка
+            logger.error(f"Неизвестная ошибка при обработке заказа {order_id}: {e}")
             order_item.status = 'failed'
             order_item.error_message = str(e)
             order_item.attempt_count += 1
             db.commit()
-            if order_item.attempt_count >= 5:
-                logger.critical(f"Заказ {order_id} провалился 5 раз. Требуется вмешательство администратора.")
 
     db.close()
 
