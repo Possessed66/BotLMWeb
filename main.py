@@ -505,3 +505,17 @@ async def create_order(
     db.close()
 
     return {"status": "queued", "queue_id": queue_entry.id}
+
+@app.get("/logout")
+async def logout(response: RedirectResponse):
+    response = RedirectResponse(url="/login", status_code=303)
+    # Удаляем куку, установив её срок действия в прошлое
+    response.set_cookie(
+        key="access_token",
+        value="",
+        httponly=False,  # Должно совпадать с тем, как вы установили куку
+        max_age=0,       # Установить срок действия в 0 (удалить)
+        samesite="lax",
+        path="/"         # Убедитесь, что путь совпадает
+    )
+    return response
