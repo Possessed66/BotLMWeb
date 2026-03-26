@@ -305,12 +305,8 @@ async def root(request: Request):
     user = get_current_user(token)
     if not user:
         return RedirectResponse(url="/app")
-    user_dict = {
-        "username": user.username,
-        "position": user.position or "без должности",
-        "department": user.department or "без отдела"
-    }
-    return templates.TemplateResponse("index.html", {"request": request, "user": user_dict})
+    # Перенаправляем на /app, где у нас встроенный HTML
+    return RedirectResponse(url="/app")
 
 @app.get("/register", response_class=HTMLResponse)
 async def get_register_page(request: Request):
