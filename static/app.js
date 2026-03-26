@@ -31,6 +31,9 @@ async function searchProduct() {
         if (response.ok && result.found) {
             currentProduct = result.data;
 
+            console.log("DEBUG: result.data:", result.data); // <-- Добавь эту строку
+            console.log("DEBUG: result.data['Артикул']:", result.data['Артикул'])
+
             document.getElementById('pArticle').textContent = result.data['Артикул'] || '—';
             document.getElementById('pName').textContent = result.data['Название'] || '—';
             document.getElementById('pDepartment').textContent = result.data['Отдел'] || '—';
