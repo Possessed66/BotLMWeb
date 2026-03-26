@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from contextlib import contextmanager
 
 # === FASTAPI & PYDANTIC ===
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic_settings import BaseSettings  # pip install pydantic-settings
@@ -341,16 +341,15 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
 security = HTTPBearer()
 
 @app.post("/api/search")
-async def search_article(credentials: HTTPBearer = Depends(security)):
-    token = credentials.credentials
-    user = get_current_user(token)
+async def search_article(
+    request: Request,  # <- Добавляем Request как параметр
+    access_token: str = Cookie(None), # <- Получаем токен из куки
+    article: str = Form(...),  # <- Получаем данные формы напрямую
+    shop: str = Form(...)
+):
+    user = get_current_user(access_token)
     if not user:
         raise HTTPException(status_code=401, detail="Не авторизован")
-
-    # Получаем данные из формы
-    request_form = await Request(scope={'type': 'http'}).form()
-    article = request_form.get("article")
-    shop = request_form.get("shop")
 
     if not article or not shop:
         raise HTTPException(status_code=400, detail="Артикул и магазин обязательны")
@@ -363,21 +362,18 @@ async def search_article(credentials: HTTPBearer = Depends(security)):
 
 # --- API: Создание заказа (с токеном из заголовка) ---
 @app.post("/api/order")
-async def create_order(credentials: HTTPBearer = Depends(security)):
-    token = credentials.credentials
-    user = get_current_user(token)
+async def create_order(
+    request: Request, # <- Добавляем Request
+    access_token: str = Cookie(None), # <- Получаем токен из куки
+    article: str = Form(...),
+    shop: str = Form(...),
+    department: str = Form(...),
+    quantity: int = Form(...),
+    order_reason: str = Form(...)
+):
+    user = get_current_user(access_token) # <- Передаём токен из куки
     if not user:
         raise HTTPException(status_code=401, detail="Не авторизован")
-
-    request_form = await Request(scope={'type': 'http'}).form()
-    article = request_form.get("article")
-    shop = request_form.get("shop")
-    department = request_form.get("department")
-    quantity = request_form.get("quantity")
-    order_reason = request_form.get("order_reason")
-
-    if not all([article, shop, department, quantity, order_reason]):
-        raise HTTPException(status_code=400, detail="Все поля обязательны")
 
     try:
         quantity = int(quantity)
