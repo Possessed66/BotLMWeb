@@ -437,7 +437,11 @@ async def login(response: RedirectResponse, username: str = Form(...), password:
 
 # --- API: Поиск товара ---
 @app.post("/api/search")
-async def search_article(article: str, shop: str, token: str = None):
+async def search_article(
+    article: str = Query(...), 
+    shop: str = Query(...),    
+    token: str = None
+):
     user = get_current_user(token)
     if not user:
         raise HTTPException(status_code=401, detail="Не авторизован")
@@ -596,12 +600,11 @@ async def app_ui(request: Request):
                 }}
 
                 try {{
-                    const response = await fetch('/api/search', {{
+                    const params = new URLSearchParams({ article, shop });
+                    const response = await fetch(`/api/search?${params}`, {
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }},
-                        body: new URLSearchParams({{ article, shop }})
-                    }});
-
+                    });
+                    
                     const result = await response.json();
 
                     if (response.ok && result.found) {{
@@ -626,6 +629,7 @@ async def app_ui(request: Request):
                         document.getElementById('productSection').classList.add('hidden');
                     }}
                 }} catch (e) {{
+                    console.error("Ошибка при поиске:", e);
                     errorDiv.textContent = 'Ошибка соединения';
                     errorDiv.classList.remove('hidden');
                 }}
