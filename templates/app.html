@@ -450,7 +450,7 @@
             document.getElementById('searchError').classList.add('hidden');
             document.getElementById('orderStatus').classList.add('hidden');
             document.getElementById('newOrderBtn').classList.add('hidden');
-            document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
+orderForm button[type="submit"]').style.display = 'block';
 
             if (view === 'product') {
                 document.getElementById('productSection').classList.remove('hidden');
@@ -782,7 +782,8 @@
         }
 
         // === Обработчик Enter для поиска (без изменений) ===
-        document.getElementById('article').addEventListener('keypress', (e if (e.key === 'Enter') searchProduct();
+        document.getElementById('article').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchProduct();
         });
 
         // === Обновление счётчика при загрузке страницы ===
