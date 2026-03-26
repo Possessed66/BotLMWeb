@@ -137,7 +137,7 @@ def get_product_info_from_existing_db(article: str, shop: str) -> Optional[Dict[
             FROM articles
             WHERE full_key = :full_key
         """), {"full_key": full_key_exact})
-        row = result.fetchone()
+        row = result.mappings().fetchone() # <-- .mappings() гарантирует, что row - это dict-like
 
         if not row:
             # 2. Поиск по префиксу
@@ -149,14 +149,11 @@ def get_product_info_from_existing_db(article: str, shop: str) -> Optional[Dict[
                 ORDER BY full_key
                 LIMIT 1
             """), {"prefix": f"{article}%"})
-            row = result.fetchone()
+            row = result.mappings().fetchone() # <-- Также используем .mappings()
 
         if row:
-            # Возвращаем как в старом коде
             supplier_id = row['supplier_code']
-            # Получаем даты поставки
             supplier_data = get_supplier_dates_from_existing_db(supplier_id, shop)
-            # Рассчитываем даты
             order_date, delivery_date = calculate_delivery_date_from_supplier_data(supplier_data)
 
             return {
@@ -187,7 +184,7 @@ def get_supplier_dates_from_existing_db(supplier_id: str, shop: str) -> Dict[str
                 FROM '{table_name}'
                 WHERE "Номер осн. пост." = :supplier_id
             """), {"supplier_id": supplier_id})
-            row = result.fetchone()
+            row = result.mappings().fetchone()
             if row:
                 return dict(row)
         except Exception:
