@@ -116,7 +116,7 @@
             padding: 12px 20px;
             border-radius: 8px;
             font-size: 1rem;
-           -weight: 500;
+            font-weight: 500;
             cursor: pointer;
             width: 100%;
             transition: background 0.2s;
@@ -166,7 +166,7 @@
 
         .info-label {
             color: var(--text-muted);
- display: flex;
+            display: flex;
             align-items: center;
             gap: 6px;
         }
@@ -189,7 +189,7 @@
         .status.success {
             background: #ecfdf5;
             color: #065f46;
-            border-left: 4px(--success);
+            border-left: 4px solid var(--success);
         }
 
         .status.error {
@@ -355,23 +355,9 @@
     </div>
 
     <script>
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-
         let currentProduct = null;
 
+        // === Поиск товара ===
         async function searchProduct() {
             const article = document.getElementById('article').value.trim();
             const shop = document.getElementById('shop').value.trim();
@@ -386,19 +372,13 @@
             }
 
             try {
-                const token = getCookie("access_token");
-                if (!token) {
-                    alert("❌ Токен авторизации не найден. Пожалуйста, войдите заново.");
-                    return;
-                }
-
                 const response = await fetch('/api/search', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: new URLSearchParams({ article, shop })
+                    body: new URLSearchParams({ article, shop }),
+                    credentials: 'include'  // 🔑 Обязательно: отправляет куки (включая HttpOnly)
                 });
 
                 const result = await response.json();
@@ -406,7 +386,7 @@
                 if (response.ok && result.found) {
                     currentProduct = result.data;
 
-                    document.getElementById('pArticle').textContent = result.data['Артикул'] || '—';
+                    document.getElementById('pArticle').textContent = resultАртикул'] || '—';
                     document.getElementById('pName').textContent = result.data['Название'] || '—';
                     document.getElementById('pDepartment').textContent = result.data['Отдел'] || '—';
                     document.getElementById('pSupplier').textContent = result.data['Поставщик'] || '—';
@@ -427,31 +407,24 @@
                     document.getElementById('productSection').classList.add('hidden');
                 }
             } catch (e) {
-                console.error("Ошибка поиска:", e);
+                console.error('Ошибка поиска:', e);
                 errorDiv.textContent = '🌐 Ошибка соединения с сервером';
                 errorDiv.classList.remove('hidden');
             }
         }
 
-        document.getElementById('orderForm').onsubmit = async (e) => {
+        // === Отправка заказа ===
+        document.getElementById('orderForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(e.target);
             const statusDiv = document.getElementById('orderStatus');
-            const submitBtn = e.submitter;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
             const newOrderBtn = document.getElementById('newOrderBtn');
 
             submitBtn.disabled = true;
             submitBtn.textContent = '⏳ Отправка...';
 
             try {
-                const token = getCookie("access_token");
-                if (!token) {
-                    statusDiv.innerHTML = '❌ Токен авторизации утерян. Пожалуйста, войдите заново.';
-                    statusDiv.className = 'status error';
-                    statusDiv.classList.remove('hidden');
-                    return;
-                }
-
+                const formData = new FormData(e.target);
                 const formObj = {};
                 for (const [key, value] of formData.entries()) {
                     formObj[key] = value;
@@ -460,10 +433,10 @@
                 const response = await fetch('/api/order', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: new URLSearchParams(formObj)
+                    body: new URLSearchParams(formObj),
+                    credentials: 'include'  // 🔑 Обязательно!
                 });
 
                 const result = await response.json();
@@ -485,7 +458,7 @@
                     statusDiv.classList.remove('hidden');
                 }
             } catch (e) {
-                console.error("Ошибка отправки:", e);
+                console.error('Ошибка отправки заказа:', e);
                 statusDiv.textContent = '❌ Сетевая ошибка. Проверьте подключение.';
                 statusDiv.className = 'status error';
                 statusDiv.classList.remove('hidden');
@@ -493,8 +466,9 @@
                 submitBtn.disabled = false;
                 submitBtn.textContent = '✅ Подтвердить и отправить';
             }
-        };
+        });
 
+        // === Сброс формы ===
         function resetForm() {
             document.getElementById('productSection').classList.add('hidden');
             document.getElementById('article').value = '';
@@ -511,7 +485,7 @@
             document.getElementById('orderForm').reset();
         }
 
-        // Поиск по Enter
+        // === Enter для поиска ===
         document.getElementById('article').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') searchProduct();
         });
