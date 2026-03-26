@@ -312,7 +312,7 @@ async def app_ui(request: Request):
         "username": user.username,
         "position": user.position or "без должности"
     }
-    # Рендерим шаблон вручную
+    # Передаём request и user в шаблон
     rendered_html = jinja_template.render(request=request, user=user_dict)
     return HTMLResponse(content=rendered_html)
 
