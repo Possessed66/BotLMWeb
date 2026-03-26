@@ -305,14 +305,12 @@ async def root(request: Request):
     user = get_current_user(token)
     if not user:
         return RedirectResponse(url="/app")
-    return templates.TemplateResponse("index.html", {
-    "request": request,
-    "user": {
+    user_dict = {
         "username": user.username,
         "position": user.position or "без должности",
         "department": user.department or "без отдела"
     }
-})
+    return templates.TemplateResponse("index.html", {"request": request, "user": user_dict})
 
 @app.get("/register", response_class=HTMLResponse)
 async def get_register_page(request: Request):
@@ -497,6 +495,11 @@ async def app_ui(request: Request):
     user = get_current_user(token)
     if not user:
         return RedirectResponse(url="/login")
+
+    user_dict = {
+        "username": user.username,
+        "position": user.position or "без должности"
+    }
 
     html_content = f"""
     <!DOCTYPE html>
