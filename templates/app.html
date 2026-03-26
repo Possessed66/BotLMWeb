@@ -4,80 +4,462 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ростовский Бот</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}"> <!-- Подключаем стили -->
     <style>
-        :root { --primary: #2563eb; --success: #16a34a; --error: #dc2626; --bg: #f8fafc; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: var(--bg); color: #1e293b; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1; }
-        .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h2 { margin: 0 0 16px; font-size: 1.25rem; color: #0f172a; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }
-        input, select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
-        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-        button { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; transition: background 0.2s; }
-        button:hover { background: #1d4ed8; } button:disabled { background: #94a3b8; cursor: not-allowed; }
-        .product-info { display: none; background: #f1f5f9; border-radius: 8px; padding: 16px; margin: 16px 0; }
-        .product-info.show { display: block; }
-        .info-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.95rem; }
-        .info-label { color: #64748b; }
-        .status { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 0.9rem; }
-        .status.success { background: #dcfce7; color: #166534; }
-        .status.error { background: #fee2e2; color: #991b1b; }
-        .hidden { display: none; }
+        :root {
+            --primary: #2563eb;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #cbd5e1;
+            --shadow: rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header h1::before {
+            content: "🛒";
+            font-size: 1.4rem;
+        }
+
+        .welcome {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            margin-top: 8px;
+        }
+
+        .btn-secondary:hover {
+            background: #565960;
+        }
+
+        .product-info {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            display: none;
+        }
+
+        .product-info.show {
+            display: block;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.95rem;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .info-value {
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .status {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status.success {
+            background: #ecfdf5;
+            color: #065f46;
+            border-left: 4px solid var(--success);
+        }
+
+        .status.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border-left: 4px solid var(--error);
+        }
+
+        .status.warning {
+            background: #fffbeb;
+            color: #92400e;
+            border-left: 4px solid var(--warning);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .footer-note {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🛒 Ростовский Бот</h1>
-        <a href="/logout"><button style="width:auto; padding: 8px 16px;">Выйти</button></a>
-    </div>
-    <p>Добро пожаловать, <strong>{{ user.username }}</strong> ({{ user.position }})</p>
-
-    <div class="card">
-        <h2>🔍 Найти товар</h2>
-        <div class="form-group">
-            <label>Номер магазина *</label>
-            <input type="text" id="shop" placeholder="Например: 7, 14, 69, 94">
-        </div>
-        <div class="form-group">
-            <label>Артикул *</label>
-            <input type="text" id="article" placeholder="Например: 100500">
-        </div>
-        <button onclick="searchProduct()">Найти товар</button>
-        <div id="searchError" class="status error hidden"></div>
-    </div>
-
-    <div id="productSection" class="card hidden">
-        <h2>📦 Информация о товаре</h2>
-        <div class="product-info show">
-            <div class="info-row"><span class="info-label">Артикул:</span> <span id="pArticle"></span></div>
-            <div class="info-row"><span class="info-label">Название:</span> <span id="pName"></span></div>
-            <div class="info-row"><span class="info-label">Отдел:</span> <span id="pDepartment"></span></div>
-            <div class="info-row"><span class="info-label">Поставщик:</span> <span id="pSupplier"></span></div>
-            <div class="info-row"><span class="info-label">Дата заказа:</span> <span id="pOrderDate"></span></div>
-            <div class="info-row"><span class="info-label">Дата поставки:</span> <span id="pDeliveryDate"></span></div>
+    <div class="container">
+        <div class="header">
+            <h1>Ростовский Бот</h1>
+            <a href="/logout">
+                <button style="width:auto; padding: 8px 16px; font-size: 0.9rem;">🚪 Выйти</button>
+            </a>
         </div>
 
-        <form id="orderForm">
-            <input type="hidden" id="formShop" name="shop">
-            <input type="hidden" id="formArticle" name="article">
-            <input type="hidden" id="formDepartment" name="department">
+        <p class="welcome">Добро пожаловать, <strong>{{ user.username }}</strong> ({{ user.position }})</p>
 
-            <h2>🛒 Оформить заказ</h2>
+        <div class="card">
+            <h2>🔍 Найти товар</h2>
             <div class="form-group">
-                <label>Количество *</label>
-                <input type="number" name="quantity" min="1" value="1">
+                <label>📍 Номер магазина *</label>
+                <input type="text" id="shop" placeholder="Например: 7, 14, 69, 94">
             </div>
             <div class="form-group">
-                <label>Причина заказа *</label>
-                <input type="text" name="order_reason" placeholder="Например: остаток < 3, сезонный спрос">
+                <label>🏷️ Артикул *</label>
+                <input type="text" id="article" placeholder="Например: 83859908">
             </div>
-            <button type="submit">✅ Подтвердить и отправить</button>
-        </form>
-        <div id="orderStatus" class="status hidden"></div>
+            <button onclick="searchProduct()">🔎 Найти товар</button>
+            <div id="searchError" class="status error hidden"></div>
+        </div>
+
+        <div id="productSection" class="card hidden">
+            <h2>📦 Информация о товаре</h2>
+            <div class="product-info show">
+                <div class="info-row">
+                    <span class="info-label">🏷️ Артикул:</span>
+                    <span class="info-value" id="pArticle"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📦 Название:</span>
+                    <span class="info-value" id="pName"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🏢 Отдел:</span>
+                    <span class="info-value" id="pDepartment"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🚚 Поставщик:</span>
+                    <span class="info-value" id="pSupplier"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📅 Дата заказа:</span>
+                    <span class="info-value" id="pOrderDate"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🚚➡️🏪 Дата поставки:</span>
+                    <span class="info-value" id="pDeliveryDate"></span>
+                </div>
+            </div>
+
+            <form id="orderForm">
+                <input type="hidden" id="formShop" name="shop">
+                <input type="hidden" id="formArticle" name="article">
+                <input type="hidden" id="formDepartment" name="department">
+
+                <h2>🛒 Оформить заказ</h2>
+                <div class="form-group">
+                    <label>🔢 Количество *</label>
+                    <input type="number" name="quantity" min="1" value="1">
+                </div>
+                <div class="form-group">
+                    <label>📝 Причина заказа *</label>
+                    <input type="text" name="order_reason" placeholder="Например: остаток < 3, сезонный спрос">
+                </div>
+                <button type="submit">✅ Подтвердить и отправить</button>
+            </form>
+
+            <div id="orderStatus" class="status hidden"></div>
+            <button id="newOrderBtn" class="btn-secondary" style="display:none;" onclick="resetForm()">🔄 Новый заказ</button>
+        </div>
+
+ <div class="footer-note">
+            Заказы обрабатываются фоновым воркером. Убедитесь, что он запущен.
+        </div>
     </div>
 
-    <script src="{{ url_for('static', path='/app.js') }}"></script> <!-- Подключаем JS -->
+    <script>
+        // Получение куки (для авторизации)
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        let currentProduct = null;
+
+        async function searchProduct() {
+            const article = document.getElementById('article').value.trim();
+            const shop = document.getElementById('shop').value.trim();
+
+            const errorDiv = document.getElementById('searchError');
+            const btn = document.querySelector('#productSection ~ .card button');
+
+            errorDiv.classList.add('hidden');
+            errorDiv.textContent = '';
+
+            if (!article || !shop) {
+                errorDiv.textContent = '⚠️ Заполните артикул и номер магазина';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const token = getCookie("access_token");
+                if (!token) {
+                    alert("❌ Токен авторизации не найден. Пожалуйста, войдите заново.");
+                    return;
+                }
+
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: new URLSearchParams({ article, shop })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.found) {
+                    currentProduct = result.data;
+
+                    document.getElementById('pArticle').textContent = result.data['Артикул'] || '—';
+                    document.getElementById('pName').textContent = result.data['Название'] || '—';
+                    document.getElementById('pDepartment').textContent = result.data['Отдел'] || '—';
+                    document.getElementById('pSupplier').textContent = result.data['Поставщик'] || '—';
+                    document.getElementById('pOrderDate').textContent = result.data['Дата заказа'] || '—';
+                    document.getElementById('pDeliveryDate').textContent = result.data['Дата поставки'] || '—';
+
+                    document.getElementById('formShop').value = result.data['Магазин'] || '';
+                    document.getElementById('formArticle').value = result.data['Артикул'] || '';
+                    document.getElementById('formDepartment').value = result.data['Отдел'] || '';
+
+                    document.getElementById('productSection').classList.remove('hidden');
+                    document.getElementById('orderStatus').classList.add('hidden');
+                    document.getElementById('newOrderBtn').style.display = 'none';
+                } else {
+                    errorDiv.innerHTML = `🔍 ${result.message || 'Товар не найден'}`;
+                    errorDiv.classList.remove('hidden');
+                    document.getElementById('productSection').classList.add('hidden');
+                }
+            } catch (e) {
+                console.error("Ошибка поиска:", e);
+                errorDiv.textContent = '🌐 Ошибка соединения с сервером';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('orderForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const statusDiv = document.getElementById('orderStatus');
+            const btn = e.submitter;
+            const newOrderBtn = document.getElementById('newOrderBtn');
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Отправка...';
+
+            try {
+                const token = getCookie("access_token");
+                if (!token) {
+                    statusDiv.innerHTML = '❌ Токен авторизации утерян. Пожалуйста, войдите заново.';
+                    statusDiv.className = 'status error';
+                    statusDiv.classList.remove('hidden');
+                    return;
+                }
+
+                const formObj = {};
+                for (const [key, value] of formData.entries()) {
+                    formObj[key] = value;
+                }
+
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: new URLSearchParams(formObj)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusDiv.innerHTML = `
+                        ✅ <strong>Заказ принят!</strong><br>
+                        ID очереди: <code>${result.queue_id}</code><br>
+                        Статус: <span style="color:${result.status === 'queued' ? '#10b981' : '#f59e0b'}">${result.status}</span>
+                    `;
+                    statusDiv.className = 'status success';
+                    statusDiv.classList.remove('hidden');
+                    newOrderBtn.style.display = 'block';
+                } else {
+                    statusDiv.textContent = `❌ ${result.detail || 'Ошибка создания заказа'}`;
+                    statusDiv.className = 'status error';
+                    statusDiv.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error("Ошибка отправки:", e);
+                statusDiv.textContent = '❌ Сетевая ошибка. Проверьте подключение.';
+                statusDiv.className = 'status error';
+                statusDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '✅ Подтвердить и отправить';
+            }
+        };
+
+        function resetForm() {
+            document.getElementById('productSection').classList.add('hidden');
+            document.getElementById('article').value = '';
+            document.getElementById('shop').value = '';
+            document.getElementById('pArticle').textContent = '';
+            document.getElementById('pName').textContent = '';
+            document.getElementById('pDepartment').textContent = '';
+            document.getElementById('pSupplier').textContent = '';
+            document.getElementById('pOrderDate').textContent = '';
+            document.getElementById('pDeliveryDate').textContent = '';
+            document.getElementById('orderStatus').classList.add('hidden');
+            document.getElementById('newOrderBtn').style.display = 'none';
+            document.getElementById('orderForm').reset();
+        }
+
+        // Поиск по Enter
+        document.getElementById('article').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchProduct();
+        });
+    </script>
 </body>
 </html>
