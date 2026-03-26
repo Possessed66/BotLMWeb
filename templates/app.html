@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ростовский Бот</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}"> <!-- Подключаем стили -->
+    <style>
+        :root { --primary: #2563eb; --success: #16a34a; --error: #dc2626; --bg: #f8fafc; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: var(--bg); color: #1e293b; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1; }
+        .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h2 { margin: 0 0 16px; font-size: 1.25rem; color: #0f172a; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        button { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; } button:disabled { background: #94a3b8; cursor: not-allowed; }
+        .product-info { display: none; background: #f1f5f9; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .product-info.show { display: block; }
+        .info-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.95rem; }
+        .info-label { color: #64748b; }
+        .status { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 0.9rem; }
+        .status.success { background: #dcfce7; color: #166534; }
+        .status.error { background: #fee2e2; color: #991b1b; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛒 Ростовский Бот</h1>
+        <a href="/logout"><button style="width:auto; padding: 8px 16px;">Выйти</button></a>
+    </div>
+    <p>Добро пожаловать, <strong>{{ user.username }}</strong> ({{ user.position }})</p>
+
+    <div class="card">
+        <h2>🔍 Найти товар</h2>
+        <div class="form-group">
+            <label>Номер магазина *</label>
+            <input type="text" id="shop" placeholder="Например: 7, 14, 69, 94">
+        </div>
+        <div class="form-group">
+            <label>Артикул *</label>
+            <input type="text" id="article" placeholder="Например: 100500">
+        </div>
+        <button onclick="searchProduct()">Найти товар</button>
+        <div id="searchError" class="status error hidden"></div>
+    </div>
+
+    <div id="productSection" class="card hidden">
+        <h2>📦 Информация о товаре</h2>
+        <div class="product-info show">
+            <div class="info-row"><span class="info-label">Артикул:</span> <span id="pArticle"></span></div>
+            <div class="info-row"><span class="info-label">Название:</span> <span id="pName"></span></div>
+            <div class="info-row"><span class="info-label">Отдел:</span> <span id="pDepartment"></span></div>
+            <div class="info-row"><span class="info-label">Поставщик:</span> <span id="pSupplier"></span></div>
+            <div class="info-row"><span class="info-label">Дата заказа:</span> <span id="pOrderDate"></span></div>
+            <div class="info-row"><span class="info-label">Дата поставки:</span> <span id="pDeliveryDate"></span></div>
+        </div>
+
+        <form id="orderForm">
+            <input type="hidden" id="formShop" name="shop">
+            <input type="hidden" id="formArticle" name="article">
+            <input type="hidden" id="formDepartment" name="department">
+
+            <h2>🛒 Оформить заказ</h2>
+            <div class="form-group">
+                <label>Количество *</label>
+                <input type="number" name="quantity" min="1" value="1">
+            </div>
+            <div class="form-group">
+                <label>Причина заказа *</label>
+                <input type="text" name="order_reason" placeholder="Например: остаток < 3, сезонный спрос">
+            </div>
+            <button type="submit">✅ Подтвердить и отправить</button>
+        </form>
+        <div id="orderStatus" class="status hidden"></div>
+    </div>
+
+    <script src="{{ url_for('static', path='/app.js') }}"></script> <!-- Подключаем JS -->
+</body>
+</html>
