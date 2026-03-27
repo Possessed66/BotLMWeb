@@ -124,7 +124,7 @@ app = FastAPI(
 )
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=ProxiedLimiterKeyFunc())
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 log = get_logger()
@@ -143,6 +143,25 @@ class OrderNotification(BaseModel):
     order_date: str 
     chat_id: str 
     action: str 
+
+
+class ProxiedLimiterKeyFunc:
+    """
+    Получает реальный IP клиента из заголовков X-Forwarded-For,
+    которые передает Nginx. Если заголовка нет, берет прямой IP.
+    """
+    def __call__(self, request: Request) -> str:
+        # Сначала проверяем заголовок от Nginx/Cloudflare
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            # Берем первый IP в цепочке (это IP клиента)
+            return forwarded.split(",")[0].strip()
+        
+        # Если заголовка нет, берем прямой IP (для локальной разработки или прямого доступа)
+        if request.client:
+            return request.client.host
+        
+        return "127.0.0.1"
 
 # === ФУНКЦИИ АВТОРИЗАЦИИ ===
 def verify_password(plain_password, hashed_password):
