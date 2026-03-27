@@ -627,7 +627,7 @@ async def create_order(
 
 @app.get("/api/notifications")
 async def get_notifications(
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=0, le=100),
     offset: int = Query(0, ge=0),
     unread_only: bool = Query(False),
     access_token: str = Cookie(None)
