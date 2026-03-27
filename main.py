@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
 from pydantic_settings import BaseSettings
+from fastapi.concurrency import run_in_threadpool
 from pydantic import Field, ValidationError, BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -112,7 +113,13 @@ class Notification(Base):
 Base.metadata.create_all(bind=engine)
 
 # === FASTAPI ===
-app = FastAPI(title="Ростовский Бот — Веб-версия", version="2.0.0")
+app = FastAPI(
+    title="Ростовский Бот", 
+    version="2.0.0",
+    docs_url=None, 
+    redoc_url=None, 
+    debug=False     
+)
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 limiter = Limiter(key_func=get_remote_address)
@@ -394,7 +401,7 @@ async def get_login_page(request: Request):
 
 @app.post("/login")
 @limiter.limit("5/5minute") 
-async def login(request: Request, response: Response, username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     db = SessionLocal()
     user = db.query(User).filter(User.username == username).first()
     db.close()
