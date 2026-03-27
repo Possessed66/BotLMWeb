@@ -19,6 +19,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
 from pydantic_settings import BaseSettings
 from pydantic import Field, ValidationError, BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # === DATABASE ===
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, func
@@ -112,6 +115,9 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Ростовский Бот — Веб-версия", version="2.0.0")
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # === Классы вне логики ===
 class NotificationReadRequest(BaseModel):
