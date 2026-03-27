@@ -111,7 +111,26 @@ class Notification(Base):
     # Системные поля
     created_at = Column(DateTime, default=datetime.utcnow)
     is_read = Column(Boolean, default=False) 
-    
+
+
+class ProxiedLimiterKeyFunc:
+    """
+    Получает реальный IP клиента из заголовков X-Forwarded-For,
+    которые передает Nginx. Если заголовка нет, берет прямой IP.
+    """
+    def __call__(self, request: Request) -> str:
+        # Сначала проверяем заголовок от Nginx/Cloudflare
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            
+            return forwarded.split(",")[0].strip()
+        
+        # Если заголовка нет, берем прямой IP (для локальной разработки или прямого доступа)
+        if request.client:
+            return request.client.host
+        
+        return "127.0.0.1"
+        
 # === ИНИЦИАЛИЗАЦИЯ БАЗЫ ===
 Base.metadata.create_all(bind=engine)
 
@@ -144,25 +163,6 @@ class OrderNotification(BaseModel):
     order_date: str 
     chat_id: str 
     action: str 
-
-
-class ProxiedLimiterKeyFunc:
-    """
-    Получает реальный IP клиента из заголовков X-Forwarded-For,
-    которые передает Nginx. Если заголовка нет, берет прямой IP.
-    """
-    def __call__(self, request: Request) -> str:
-        # Сначала проверяем заголовок от Nginx/Cloudflare
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            
-            return forwarded.split(",")[0].strip()
-        
-        # Если заголовка нет, берем прямой IP (для локальной разработки или прямого доступа)
-        if request.client:
-            return request.client.host
-        
-        return "127.0.0.1"
 
 # === ФУНКЦИИ АВТОРИЗАЦИИ ===
 def verify_password(plain_password, hashed_password):
