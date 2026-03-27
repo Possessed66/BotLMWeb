@@ -154,7 +154,7 @@ class ProxiedLimiterKeyFunc:
         # Сначала проверяем заголовок от Nginx/Cloudflare
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
-            # Берем первый IP в цепочке (это IP клиента)
+            
             return forwarded.split(",")[0].strip()
         
         # Если заголовка нет, берем прямой IP (для локальной разработки или прямого доступа)
