@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from logger import get_logger
 
 # === FASTAPI & PYDANTIC ===
 from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query, Response
@@ -125,7 +126,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
+log = get_logger()
 # === Классы вне логики ===
 class NotificationReadRequest(BaseModel):
     notification_ids: List[int]
@@ -328,7 +329,7 @@ def process_order_queue():
             ]
 
             # --- ПРОВЕРКА ОБНОВЛЕНИЯ ---
-            logger.info(f"Отправка обновлений: {updates}")
+            logger.info(f"WORKER: Writing order {order_id} to sheet '{dept}'")
             result_of_update = worksheet.batch_update(updates) # <-- ОШИБКА ВОЗНИКАЕТ ЗДЕСЬ
             logger.info(f"Результат batch_update: {result_of_update}") # <-- Вот тут может быть пусто
 
@@ -336,7 +337,7 @@ def process_order_queue():
             order_item.status = 'completed'
             order_item.processed_at = datetime.utcnow()
             db.commit()
-            logger.info(f"Заказ {order_id} успешно обработан и записан в Google Таблицу.")
+            log.info(f"WORKER SUCCESS: Order {order_id} written to Google Sheet '{dept}' by user {order_data.get('user_name')}")
 
         except json.JSONDecodeError as je:
             logger.error(f"Ошибка декодирования JSON в заказе {order_id}: {je}. Данные: {order_data_str}")
@@ -406,12 +407,18 @@ async def login(request: Request, username: str = Form(...), password: str = For
     user = db.query(User).filter(User.username == username).first()
     db.close()
 
+    client_host = request.client.host if request.client else "unknown"
+    
     if not user or not verify_password(password, user.hashed_password):
+        db.close()
+        log.warning(f"LOGIN FAILED: User='{username}', IP={client_host}")
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "Неверные учетные данные"
         })
-
+        
+    log.info(f"LOGIN SUCCESS: User='{username}', IP={client_host}")
+    
     token_data = {"sub": user.username}
     token = create_access_token(data=token_data)
 
@@ -424,6 +431,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
         samesite="lax", # Защита от CSRF
         max_age=1800
     )
+    db.close()
     return response
     
 
@@ -545,6 +553,8 @@ async def create_order(
         "user_position": user.position or "сотрудник",
         "user_id": user.id
     }
+    log.info(f"ORDER CREATED: User='{user.username}', Article={article}, Shop={shop}, Qty={quantity}, Reason='{order_reason}'")
+    
 
     db = SessionLocal()
     queue_entry = OrderQueue(
