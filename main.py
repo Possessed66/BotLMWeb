@@ -7,7 +7,7 @@ import jwt
 import asyncio
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -114,6 +114,9 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # === Классы вне логики ===
+class NotificationReadRequest(BaseModel):
+    notification_ids: List[int]
+
 
 class OrderNotification(BaseModel):
     sheet_name: str
@@ -570,19 +573,21 @@ async def get_notifications(
 # --- API: Отметить уведомления как прочитанные ---
 @app.post("/api/notifications/read")
 async def mark_notifications_read(
-    notification_ids: list[int],                     # Принимаем список ID
-    access_token: str = Cookie(None)                # Авторизация
+    request: NotificationReadRequest,  # <--- Принимаем модель, а не "голый" список
+    access_token: str = Cookie(None)
 ):
     user = get_current_user(access_token)
     if not user:
         raise HTTPException(status_code=401, detail="Не авторизован")
+
+    # 2. Достаем список ID из модели
+    notification_ids = request.notification_ids
 
     if not notification_ids:
         return {"status": "nothing_to_update"}
 
     db = SessionLocal()
     try:
-        # Обновляем статус на "прочитано" для указанных ID
         rows_updated = db.query(Notification).filter(
             Notification.id.in_(notification_ids)
         ).update({"is_read": True}, synchronize_session=False)
