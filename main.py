@@ -14,7 +14,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from logger import get_logger
 
 # === FASTAPI & PYDANTIC ===
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query, Response
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query, Response, RedirectResponse
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
@@ -171,13 +171,18 @@ def decode_access_token(token: str):
 def get_current_user(token: str = None):
     if not token:
         return None
+    
+    
     username = decode_access_token(token)
     if not username:
         return None
+    
     db = SessionLocal()
-    user = db.query(User).filter(User.username == username).first()
-    db.close()
-    return user
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        return user
+    finally:
+        db.close()
 
 def run_process_order_queue():
     """Обёртка для запуска воркера в синхронном контексте"""
@@ -401,22 +406,41 @@ async def get_login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
-@limiter.limit("5/5minute") 
+@limiter.limit("5/5minute")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    db = SessionLocal()
-    user = db.query(User).filter(User.username == username).first()
-    db.close()
-
+    # 1. Подготовка (синхронно)
     client_host = request.client.host if request.client else "unknown"
     
-    if not user or not verify_password(password, user.hashed_password):
-        db.close()
+    # 2. Запрос к БД (выносим в поток)
+    # Создаем отдельную функцию для логики БД, чтобы запустить её в потоке
+    def verify_db_user():
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.username == username).first()
+            return user
+        finally:
+            db.close()
+
+    user = await run_in_threadpool(verify_db_user)
+
+    if not user:
         log.warning(f"LOGIN FAILED: User='{username}', IP={client_host}")
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "Неверные учетные данные"
         })
-        
+
+    # 3. Проверка пароля (bcrypt — ОЧЕНЬ тяжелая операция, обязательно в поток!)
+    is_password_valid = await run_in_threadpool(verify_password, password, user.hashed_password)
+
+    if not is_password_valid:
+        log.warning(f"LOGIN FAILED (Wrong Pass): User='{username}', IP={client_host}")
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Неверные учетные данные"
+        })
+
+    # 4. Успех
     log.info(f"LOGIN SUCCESS: User='{username}', IP={client_host}")
     
     token_data = {"sub": user.username}
@@ -426,12 +450,11 @@ async def login(request: Request, username: str = Form(...), password: str = For
     response.set_cookie(
         key="access_token",
         value=token,
-        httponly=True,  # Защита от XSS
-        secure=True,   # Поставь True для HTTPS!
-        samesite="lax", # Защита от CSRF
+        httponly=True,
+        secure=True,
+        samesite="lax",
         max_age=1800
     )
-    db.close()
     return response
     
 
@@ -462,42 +485,53 @@ async def register(
     password: str = Form(...), 
     position: str = Form("")
 ):
-    # 1. Проверка: логин не должен быть только числовым (защита sensitive данных)
-    # Разрешаем буквы, подчеркивания, дефисы, но запрещаем строку, состоящую ТОЛЬКО из цифр
+    # Валидация (синхронно, быстро)
     if username.isdigit():
         return templates.TemplateResponse("register.html", {
             "request": request,
-            "error": "Логин не может состоять только из цифр. Используйте буквенное обозначение."
+            "error": "Логин не может состоять только из цифр."
         })
-    
-    # Дополнительная проверка: только латинские буквы и _ (как в HTML форме)
     if not re.match(r'^[A-Za-z_]+$', username):
          return templates.TemplateResponse("register.html", {
             "request": request,
-            "error": "Логин может содержать только латинские буквы и подчеркивание."
+            "error": "Только латинские буквы."
         })
-
     if len(password) < 6:
          return templates.TemplateResponse("register.html", {
             "request": request,
-            "error": "Пароль должен быть не менее 6 символов."
+            "error": "Пароль слишком короткий."
         })
 
-    db = SessionLocal()
-    existing_user = db.query(User).filter(User.username == username).first()
-    if existing_user:
-        db.close()
+    # Логика БД и хеширования (выносим в отдельную функцию)
+    def process_registration():
+        db = SessionLocal()
+        try:
+            existing_user = db.query(User).filter(User.username == username).first()
+            if existing_user:
+                return "exists"
+            
+            # Хеширование (тяжело!)
+            hashed_pw = get_password_hash(password)
+            
+            new_user = User(username=username, hashed_password=hashed_pw, position=position)
+            db.add(new_user)
+            db.commit()
+            return "ok"
+        except Exception as e:
+            log.error(f"Registration error: {e}")
+            return "error"
+        finally:
+            db.close()
+
+    # Запускаем в потоке
+    result = await run_in_threadpool(process_registration)
+
+    if result == "exists":
         return templates.TemplateResponse("register.html", {
             "request": request,
             "error": "Пользователь уже существует"
         })
-
-    hashed_pw = get_password_hash(password)
-    # Email убран, используем только доступные поля
-    new_user = User(username=username, hashed_password=hashed_pw, position=position)
-    db.add(new_user)
-    db.commit()
-    db.close()
+    
     return RedirectResponse(url="/login", status_code=303)
 
 # --- API: Поиск товара (с токеном из заголовка) ---
@@ -505,9 +539,9 @@ security = HTTPBearer()
 
 @app.post("/api/search")
 async def search_article(
-    request: Request,  # <- Добавляем Request как параметр
-    access_token: str = Cookie(None), # <- Получаем токен из куки
-    article: str = Form(...),  # <- Получаем данные формы напрямую
+    request: Request,
+    access_token: str = Cookie(None),
+    article: str = Form(...),
     shop: str = Form(...)
 ):
     user = get_current_user(access_token)
@@ -517,7 +551,9 @@ async def search_article(
     if not article or not shop:
         raise HTTPException(status_code=400, detail="Артикул и магазин обязательны")
 
-    product_info = get_product_info_from_existing_db(article, shop)
+    
+    product_info = await run_in_threadpool(get_product_info_from_existing_db, article, shop)
+    
     if product_info:
         return {"found": True, "data": product_info}
     return {"found": False, "message": f"Артикул {article} не найден для магазина {shop}"}
@@ -570,53 +606,50 @@ async def create_order(
 
 @app.get("/api/notifications")
 async def get_notifications(
-    limit: int = Query(20, ge=1, le=100),           # Сколько вернуть
-    offset: int = Query(0, ge=0),                   # Смещение
-    unread_only: bool = Query(False),               # Только непрочитанные
-    access_token: str = Cookie(None)                # Авторизация
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    unread_only: bool = Query(False),
+    access_token: str = Cookie(None)
 ):
     user = get_current_user(access_token)
     if not user:
         raise HTTPException(status_code=401, detail="Не авторизован")
 
-    db = SessionLocal()
+    # Функция работы с БД
+    def fetch_notifications():
+        db = SessionLocal()
+        try:
+            query = db.query(Notification).filter(Notification.chat_id == str(user.id))
+            if unread_only:
+                query = query.filter(Notification.is_read == False)
+            
+            query = query.order_by(Notification.created_at.desc())
+            notifications = query.offset(offset).limit(limit).all()
+            
+            result = []
+            for n in notifications:
+                result.append({
+                    "id": n.id,
+                    "sheet_name": n.sheet_name,
+                    "row_number": n.row_number,
+                    "order_number": n.order_number,
+                    "article": n.article,
+                    "name": n.name,
+                    "order_id": n.order_id,
+                    "order_date": n.order_date,
+                    "chat_id": n.chat_id,
+                    "action": n.action,
+                    "message": n.message,
+                    "created_at": n.created_at.isoformat(),
+                    "is_read": n.is_read
+                })
+            
+            total_count = db.query(Notification).filter(Notification.chat_id == str(user.id)).count()
+            return {"notifications": result, "total_count": total_count}
+        finally:
+            db.close()
 
-    query = db.query(Notification)
-
-    query = query.filter(Notification.chat_id == str(user.id))
-
-    # Фильтр по непрочитанным
-    if unread_only:
-        query = query.filter(Notification.is_read == False)
-
-    # Сортировка по дате (новые первыми)
-    query = query.order_by(Notification.created_at.desc())
-
-    # Применяем лимит и смещение
-    notifications = query.offset(offset).limit(limit).all()
-
-    # Формируем ответ
-    result = []
-    for n in notifications:
-        result.append({
-            "id": n.id,
-            "sheet_name": n.sheet_name,
-            "row_number": n.row_number,
-            "order_number": n.order_number,
-            "article": n.article,
-            "name": n.name,
-            "order_id": n.order_id,
-            "order_date": n.order_date,
-            "chat_id": n.chat_id,
-            "action": n.action,
-            "message": n.message,
-            "created_at": n.created_at.isoformat(),
-            "is_read": n.is_read
-        })
-
-    total_count = db.query(Notification).filter(Notification.chat_id == str(user.id)).count()
-    db.close()
-    return {"notifications": result, "total_count": total_count}
+    return await run_in_threadpool(fetch_notifications)
 
 # --- API: Отметить уведомления как прочитанные ---
 @app.post("/api/notifications/read")
