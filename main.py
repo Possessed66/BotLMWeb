@@ -5,6 +5,7 @@ import secrets
 import bcrypt
 import jwt
 import asyncio
+import re
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
