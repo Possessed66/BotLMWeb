@@ -6,12 +6,12 @@ import bcrypt
 import jwt
 import asyncio
 import re
+import threading
+import time
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from logger import get_logger
 
 # === FASTAPI & PYDANTIC ===
@@ -65,7 +65,6 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
 
 settings = Settings()
-scheduler = AsyncIOScheduler()
 # === БАЗА ДАННЫХ ===
 engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -205,23 +204,6 @@ def get_current_user(token: str = None):
     finally:
         db.close()
 
-def run_process_order_queue():
-    """Обёртка для запуска воркера в синхронном контексте"""
-    # Создаём новый event loop для вызова асинхронной функции
-    # Это не идеально, но подходит для таких задач
-    # В идеале, сама process_order_queue должна быть асинхронной
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        # Импортируем внутри, чтобы не было циклической зависимости
-        from main import process_order_queue
-        process_order_queue()
-    except Exception as e:
-        logger.error(f"Ошибка в scheduled process_order_queue: {e}")
-    finally:
-        loop.close()
-
-scheduler.add_job(run_process_order_queue, trigger=IntervalTrigger(seconds=120), id='process_orders')
 
 # === РАБОТА С СУЩЕСТВУЮЩЕЙ БАЗОЙ (SQLAlchemy raw SQL для совместимости) ===
 from sqlalchemy import create_engine as raw_engine, text
@@ -804,13 +786,27 @@ async def webhook_orders(request: Request):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # --- START/SHUTDOWN EVENTS ---
+
+def scheduler_loop():
+    """
+    Фоновый поток-демон.
+    Запускается один раз при старте сервера и работает вечно.
+    """
+    log.info("🚀 Background Worker started. Interval: 120 sec.")
+    while True:
+        try:
+            # Запускаем задачу обработки заказов
+            process_order_queue()
+        except Exception as e:
+            log.error(f"🔥 Critical error in background worker: {e}")
+        
+        # Спим 120 секунд перед следующим запуском
+        time.sleep(120)
+
+
 @app.on_event("startup")
 async def startup_event():
-    scheduler.start()
-    logger.info("Scheduler started.")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    scheduler.shutdown()
-    logger.info("Scheduler shut down.")
-    return {"status": "ok"}
+    thread = threading.Thread(target=scheduler_loop, daemon=True)
+    thread.start()
+    log.info("Server started. Background worker thread initiated.")
