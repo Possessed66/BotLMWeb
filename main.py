@@ -413,7 +413,7 @@ async def login(request: Request, response: Response, username: str = Form(...),
         key="access_token",
         value=token,
         httponly=True,  # Защита от XSS
-        secure=False,   # Поставь True для HTTPS!
+        secure=True,   # Поставь True для HTTPS!
         samesite="lax", # Защита от CSRF
         max_age=1800
     )
