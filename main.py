@@ -533,13 +533,11 @@ async def get_notifications(
 
     query = db.query(Notification)
 
+    query = query.filter(Notification.chat_id == str(user.id))
+
     # Фильтр по непрочитанным
     if unread_only:
         query = query.filter(Notification.is_read == False)
-
-    # Фильтр по пользователю (если chat_id в уведомлении соответствует user.id или user.username)
-    # В текущем примере, мы просто покажем все уведомления, но можно добавить фильтр:
-    # query = query.filter(Notification.chat_id == str(user.id)) # или user.username
 
     # Сортировка по дате (новые первыми)
     query = query.order_by(Notification.created_at.desc())
@@ -566,7 +564,7 @@ async def get_notifications(
             "is_read": n.is_read
         })
 
-    total_count = db.query(Notification).count() # Общее количество для пагинации
+    total_count = db.query(Notification).filter(Notification.chat_id == str(user.id)).count()
     db.close()
     return {"notifications": result, "total_count": total_count}
 
