@@ -335,14 +335,59 @@
             font-size: 0.7rem;
             margin-left: 4px;
         }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px; /* Минимальное расстояние между кнопками */
+        }
+
+        #notifications-btn {
+            position: relative;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 0.9rem;
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #notifications-btn:hover {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 6px;
+        }
+
+        .unread-count {
+            background-color: var(--warning); /* Оранжевый */
+            color: white;
+            border-radius: 50%;
+            padding: 0 6px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 18px;
+            text-align: center;
+        }        
+
+            .unread-count.hidden {
+            display: none;
+        }
+        
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>Ростовский Бот</h1>
-            <div>
-                <span id="unread-badge" class="unread-count hidden">0</span>
+            <div class="header-actions">
+                <button id="notifications-btn" onclick="switchView('notifications')" style="position: relative;">
+                    🔔 Уведомления
+                    <span id="unread-badge" class="unread-count hidden">0</span>
+                </button>
                 <a href="/logout">
                     <button style="width:auto; padding: 8px 16px; font-size: 0.9rem;">🚪 Выйти</button>
                 </a>
@@ -594,15 +639,23 @@
 
         // === ФУНКЦИЯ: Отметить уведомления как прочитанные ===
         async function markNotificationsAsRead(ids) {
-            if (!ids || ids.length === 0) return;
 
+            const validIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+            
+            if (!validIds || validIds.length === 0) {
+                console.warn("Нет валидных ID для отметки как прочитанные");
+                return;
+            }
+            
+            console.log("Отмечаем как прочитанные:", validIds);
+            
             try {
                 const response = await fetch('/api/notifications/read', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ notification_ids: ids }),
+                    body: JSON.stringify({ notification_ids: validIds }),,
                     credentials: 'include'
                 });
 
@@ -610,6 +663,8 @@
                     console.log(`Отмечено как прочитано: ${ids.length} уведомлений`);
                     // Обновляем счётчик после успешной отметки
                     updateUnreadCount();
+                    if (!document.getElementById('notificationsSection').classList.contains('hidden')) {
+                            loadNotifications(currentFilterUnread);}
                 } else {
                     console.error("Ошибка отметки как прочитанные");
                 }
@@ -633,7 +688,7 @@
                 itemEl.innerHTML = `
                     <div class="notification-header">
                         <div class="notification-title">[${notif.action}] ${notif.sheet_name}:${notif.row_number}</div>
-                        <div class="notification-time">${new Date(notif.created_at).toLocaleString()}</div>
+                        <<div class="notification-time">${new Date(notif.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</div>
                     </div>
                     <div class="notification-message">${notif.message}</div>
                     <div class="notification-meta">Заказ: ${notif.order_number || 'N/A'}, Артикул: ${notif.article || 'N/A'}</div>
