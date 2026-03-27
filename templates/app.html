@@ -338,7 +338,7 @@
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 12px; /* Минимальное расстояние между кнопками */
+            gap: 12px; 
         }
 
         #notifications-btn {
@@ -360,7 +360,7 @@
         }
 
         .unread-count {
-            background-color: var(--warning); /* Оранжевый */
+            background-color: var(--warning); 
             color: white;
             border-radius: 50%;
             padding: 0 6px;
@@ -373,7 +373,7 @@
             text-align: center;
         }        
 
-            .unread-count.hidden {
+        .unread-count.hidden {
             display: none;
         }
         
@@ -384,6 +384,7 @@
         <div class="header">
             <h1>Ростовский Бот</h1>
             <div class="header-actions">
+                <!-- ЕДИНСТВЕННАЯ КНОПКА УВЕДОМЛЕНИЙ -->
                 <button id="notifications-btn" onclick="switchView('notifications')" style="position: relative;">
                     🔔 Уведомления
                     <span id="unread-badge" class="unread-count hidden">0</span>
@@ -396,77 +397,90 @@
 
         <p class="welcome">Добро пожаловать, <strong>{{ user.username }}</strong> ({{ user.position }})</p>
 
-        <div class="card">
-            <h2>🔍 Найти товар</h2>
-            <div class="form-group">
-                <label>📍 Номер магазина *</label>
-                <input type="text" id="shop" placeholder="Например: 7, 14, 69, 94">
-            </div>
-            <div class="form-group">
-                <label>🏷️ Артикул *</label>
-                <input type="text" id="article" placeholder="Например: 83859908">
-            </div>
-            <button onclick="searchProduct()">🔎 Найти товар</button>
-            <button onclick="switchView('notifications')" style="margin-top: 8px; background: #6b7280;">🔔 Уведомления</button>
-            <div id="searchError" class="status error hidden"></div>
-        </div>
-
-        <!-- Секция для информации о товаре -->
-        <div id="productSection" class="card hidden">
-            <h2>📦 Информация о товаре</h2>
-            <div class="product-info show">
-                <div class="info-row">
-                    <span class="info-label">🏷️ Артикул:</span>
-                    <span class="info-value" id="pArticle"></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">📦 Название:</span>
-                    <span class="info-value" id="pName"></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">🏢 Отдел:</span>
-                    <span class="info-value" id="pDepartment"></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">🚚 Поставщик:</span>
-                    <span class="info-value" id="pSupplier"></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">📅 Дата заказа:</span>
-                    <span class="info-value" id="pOrderDate"></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">🚚➡️🏪 Дата поставки:</span>
-                    <span class="info-value" id="pDeliveryDate"></span>
-                </div>
-            </div>
-
-            <form id="orderForm">
-                <input type="hidden" id="formShop" name="shop">
-                <input type="hidden" id="formArticle" name="article">
-                <input type="hidden" id="formDepartment" name="department">
-
-                <h2>🛒 Оформить заказ</h2>
+        <!-- ОСНОВНАЯ СЕКЦИЯ: Поиск и Заказ -->
+        <div id="mainSection">
+            <div class="card">
+                <h2>🔍 Найти товар</h2>
                 <div class="form-group">
-                    <label>🔢 Количество *</label>
-                    <input type="number" name="quantity" min="1" value="1">
+                    <label>📍 Номер магазина *</label>
+                    <input type="text" id="shop" placeholder="Например: 7, 14, 69, 94">
                 </div>
                 <div class="form-group">
-                    <label>📝 Причина заказа *</label>
-                    <input type="text" name="order_reason" placeholder="Например: остаток < 3, сезонный спрос">
+                    <label>🏷️ Артикул *</label>
+                    <input type="text" id="article" placeholder="Например: 83859908">
                 </div>
-                <button type="submit">✅ Подтвердить и отправить</button>
-            </form>
+                <button onclick="searchProduct()">🔎 Найти товар</button>
+                <!-- УДАЛЕНА ДУБЛИРУЮЩАЯ КНОПКА УВЕДОМЛЕНИЙ -->
+                <div id="searchError" class="status error hidden"></div>
+            </div>
 
-            <div id="orderStatus" class="status hidden"></div>
-            <button id="newOrderBtn" class="btn-secondary hidden" onclick="resetForm()">🔄 Новый заказ</button>
+            <!-- Секция для информации о товаре (появляется после поиска) -->
+            <div id="productSection" class="card hidden">
+                <h2>📦 Информация о товаре</h2>
+                <div class="product-info show">
+                    <div class="info-row">
+                        <span class="info-label">🏷️ Артикул:</span>
+                        <span class="info-value" id="pArticle"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">📦 Название:</span>
+                        <span class="info-value" id="pName"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">🏢 Отдел:</span>
+                        <span class="info-value" id="pDepartment"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">🚚 Поставщик:</span>
+                        <span class="info-value" id="pSupplier"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">📅 Дата заказа:</span>
+                        <span class="info-value" id="pOrderDate"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">🚚➡️🏪 Дата поставки:</span>
+                        <span class="info-value" id="pDeliveryDate"></span>
+                    </div>
+                </div>
+
+                <form id="orderForm">
+                    <input type="hidden" id="formShop" name="shop">
+                    <input type="hidden" id="formArticle" name="article">
+                    <input type="hidden" id="formDepartment" name="department">
+
+                    <h2>🛒 Оформить заказ</h2>
+                    <div class="form-group">
+                        <label>🔢 Количество *</label>
+                        <input type="number" name="quantity" min="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>📝 Причина заказа *</label>
+                        <input type="text" name="order_reason" placeholder="Например: остаток < 3, сезонный спрос">
+                    </div>
+                    <button type="submit">✅ Подтвердить и отправить</button>
+                </form>
+
+                <div id="orderStatus" class="status hidden"></div>
+                <button id="newOrderBtn" class="btn-secondary hidden" onclick="resetForm()">🔄 Новый заказ</button>
+            </div>
         </div>
 
-        <!-- НОВАЯ СЕКЦИЯ: Уведомления -->
+        <!-- СЕКЦИЯ УВЕДОМЛЕНИЙ (Скрыта по умолчанию) -->
         <div id="notificationsSection" class="card hidden">
-            <h2>🔔 Уведомления</h2>
-            <button onclick="loadNotifications(false)">🔄 Обновить</button>
-            <button onclick="loadNotifications(true)" style="background: #6b7280;">📋 Показать непрочитанные</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="margin-bottom: 0;">🔔 Уведомления</h2>
+                <!-- КНОПКА ВОЗВРАТА К ПОИСКУ -->
+                <button onclick="switchView('main')" style="width: auto; background: #6b7280; padding: 8px 16px;">
+                    🔙 К поиску
+                </button>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                <button onclick="loadNotifications(false)">🔄 Обновить</button>
+                <button onclick="loadNotifications(true)" style="background: #6b7280;">📋 Непрочитанные</button>
+            </div>
+
             <div id="notificationsContainer">
                 <div class="loading">Загрузка уведомлений...</div>
             </div>
@@ -487,22 +501,25 @@
         let allNotificationsLoaded = false;
         let currentFilterUnread = false;
 
-        // === ФУНКЦИЯ: Переключение между видами (товар/уведомления) ===
+        // === ФУНКЦИЯ: Переключение между видами (Главная / Уведомления) ===
         function switchView(view) {
-            document.getElementById('productSection').classList.add('hidden');
-            document.getElementById('notificationsSection').classList.add('hidden');
-            document.getElementById('orderForm').reset();
+            const mainSection = document.getElementById('mainSection');
+            const notificationsSection = document.getElementById('notificationsSection');
+            
+            // Скрываем всё
+            mainSection.classList.add('hidden');
+            notificationsSection.classList.add('hidden');
+            
+            // Очищаем ошибки и статусы
             document.getElementById('searchError').classList.add('hidden');
-            document.getElementById('orderStatus').classList.add('hidden');
-            document.getElementById('newOrderBtn').classList.add('hidden');
-            document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
 
-            if (view === 'product') {
-                document.getElementById('productSection').classList.remove('hidden');
+            if (view === 'main') {
+                mainSection.classList.remove('hidden');
             } else if (view === 'notifications') {
-                document.getElementById('notificationsSection').classList.remove('hidden');
-                // Загрузить уведомления при переходе на вкладку
-                if (document.getElementById('notificationsContainer').innerHTML.includes('Загрузка')) {
+                notificationsSection.classList.remove('hidden');
+                // Загружаем уведомления, если они еще не загружены или это первый вход
+                const container = document.getElementById('notificationsContainer');
+                if (container.innerHTML.includes('Загрузка')) {
                     loadNotifications(false);
                 }
             }
@@ -521,7 +538,7 @@
                 }
 
                 const data = await response.json();
-                const count = data.total_count; // Предполагается, что API возвращает total_count
+                const count = data.total_count; 
                 const badge = document.getElementById('unread-badge');
                 if (count > 0) {
                     badge.textContent = count;
@@ -580,7 +597,6 @@
                     loadMoreBtn.classList.remove('hidden');
                 }
 
-                // Обновляем счётчик после загрузки
                 updateUnreadCount();
 
             } catch (e) {
@@ -610,7 +626,6 @@
                 }
 
                 const data = await response.json();
-                const container = document.getElementById('notificationsContainer');
 
                 if (data.notifications.length === 0) {
                     allNotificationsLoaded = true;
@@ -618,13 +633,13 @@
                     return;
                 }
 
-                renderNotifications(data.notifications, true); // Добавить к существующим
+                renderNotifications(data.notifications, true); 
 
                 notificationOffset += data.notifications.length;
                 if (data.notifications.length < notificationLimit) {
                     allNotificationsLoaded = true;
                 }
-
+                
                 if (allNotificationsLoaded) {
                     loadMoreBtn.classList.add('hidden');
                 }
@@ -639,15 +654,12 @@
 
         // === ФУНКЦИЯ: Отметить уведомления как прочитанные ===
         async function markNotificationsAsRead(ids) {
-
             const validIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
             
             if (!validIds || validIds.length === 0) {
                 console.warn("Нет валидных ID для отметки как прочитанные");
                 return;
             }
-            
-            console.log("Отмечаем как прочитанные:", validIds);
             
             try {
                 const response = await fetch('/api/notifications/read', {
@@ -661,10 +673,9 @@
 
                 if (response.ok) {
                     console.log(`Отмечено как прочитано: ${ids.length} уведомлений`);
-                    // Обновляем счётчик после успешной отметки
                     updateUnreadCount();
-                    if (!document.getElementById('notificationsSection').classList.contains('hidden')) {
-                            loadNotifications(currentFilterUnread);}
+                    // Опционально: перезагрузить текущий список, чтобы обновить стили
+                    // loadNotifications(currentFilterUnread); 
                 } else {
                     console.error("Ошибка отметки как прочитанные");
                 }
@@ -693,26 +704,28 @@
                     <div class="notification-message">${notif.message}</div>
                     <div class="notification-meta">Заказ: ${notif.order_number || 'N/A'}, Артикул: ${notif.article || 'N/A'}</div>
                     <div class="notification-controls">
-                        <button onclick="markSingleNotificationAsRead(${notif.id}, this)">✅ Отметить как прочитанное</button>
+                        <button onclick="markSingleNotificationAsRead(${notif.id}, this)">✅ Прочитано</button>
                     </div>
                 `;
                 container.appendChild(itemEl);
             });
         }
 
-        // === ФУНКЦИЯ: Отметить одно уведомление как прочитанное ===
+        // === ФУНКЦИЯ: Отметить одно уведомление ===
         function markSingleNotificationAsRead(id, button) {
             markNotificationsAsRead([id]);
-            // Убираем класс unread и кнопку
             const item = document.querySelector(`.notification-item[data-id="${id}"]`);
             if (item) {
                 item.classList.remove('unread');
-                button.parentElement.parentElement.removeChild(button.parentElement); // Удаляем controls
+                // Удаляем кнопку "Прочитано", так как оно уже прочитано
+                const controls = button.parentElement;
+                if (controls) {
+                    controls.remove();
+                }
             }
         }
 
-
-        // === ФУНКЦИЯ: Поиск товара (без изменений) ===
+        // === ФУНКЦИЯ: Поиск товара ===
         async function searchProduct() {
             const article = document.getElementById('article').value.trim();
             const shop = document.getElementById('shop').value.trim();
@@ -752,11 +765,16 @@
                     document.getElementById('formArticle').value = result.data['Артикул'] || '';
                     document.getElementById('formDepartment').value = result.data['Отдел'] || '';
 
-                    switchView('product');
+                    // Показываем секцию товара (она находится внутри mainSection, поэтому просто убираем hidden)
+                    document.getElementById('productSection').classList.remove('hidden');
+                    
+                    // Скролл к найденному товару
+                    document.getElementById('productSection').scrollIntoView({ behavior: 'smooth' });
+                    
                 } else {
                     errorDiv.innerHTML = `🔍 ${result.message || 'Товар не найден'}`;
                     errorDiv.classList.remove('hidden');
-                    switchView('product');
+                    document.getElementById('productSection').classList.add('hidden');
                 }
             } catch (e) {
                 console.error('Ошибка поиска:', e);
@@ -765,7 +783,7 @@
             }
         }
 
-        // === ФУНКЦИЯ: Отправка заказа (без изменений) ===
+        // === ФУНКЦИЯ: Отправка заказа ===
         document.getElementById('orderForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const statusDiv = document.getElementById('orderStatus');
@@ -819,29 +837,24 @@
             }
         });
 
-        // === ФУНКЦИЯ: Сброс формы (Новый заказ) (без изменений) ===
+        // === ФУНКЦИЯ: Сброс формы (Новый заказ) ===
         function resetForm() {
             document.getElementById('productSection').classList.add('hidden');
             document.getElementById('article').value = '';
             document.getElementById('shop').value = '';
-            document.getElementById('pArticle').textContent = '';
-            document.getElementById('pName').textContent = '';
-            document.getElementById('pDepartment').textContent = '';
-            document.getElementById('pSupplier').textContent = '';
-            document.getElementById('pOrderDate').textContent = '';
-            document.getElementById('pDeliveryDate').textContent = '';
             document.getElementById('orderStatus').classList.add('hidden');
             document.getElementById('newOrderBtn').classList.add('hidden');
             document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
             document.getElementById('orderForm').reset();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // === Обработчик Enter для поиска (без изменений) ===
+        // === Обработчик Enter для поиска ===
         document.getElementById('article').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') searchProduct();
         });
 
-        // === Обновление счётчика при загрузке страницы ===
+        // === Инициализация ===
         document.addEventListener('DOMContentLoaded', function() {
             updateUnreadCount();
         });
