@@ -655,7 +655,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ notification_ids: validIds }),,
+                    body: JSON.stringify({ notification_ids: validIds }),
                     credentials: 'include'
                 });
 
@@ -688,7 +688,7 @@
                 itemEl.innerHTML = `
                     <div class="notification-header">
                         <div class="notification-title">[${notif.action}] ${notif.sheet_name}:${notif.row_number}</div>
-                        <<div class="notification-time">${new Date(notif.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</div>
+                        <div class="notification-time">${new Date(notif.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</div>
                     </div>
                     <div class="notification-message">${notif.message}</div>
                     <div class="notification-meta">Заказ: ${notif.order_number || 'N/A'}, Артикул: ${notif.article || 'N/A'}</div>
