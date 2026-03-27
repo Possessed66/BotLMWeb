@@ -256,284 +256,309 @@
     </div>
 
     <script>
-        // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
-        let currentProduct = null;
-        let notificationOffset = 0;
-        const notificationLimit = 20;
-        let loadingNotifications = false;
-        let allNotificationsLoaded = false;
-        let currentFilterUnread = false;
+    // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
+    let currentProduct = null;
+    let notificationOffset = 0;
+    const notificationLimit = 20;
+    let loadingNotifications = false;
+    let allNotificationsLoaded = false;
+    let currentFilterUnread = false;
 
-        // === СЛОВАРЬ СТАТУСОВ (Красивые заголовки) ===
-        const statusMap = {
-            'confirmed': { text: '✅ Заказ подтверждён', class: 'confirmed' },
-            'rejected': { text: '❌ Заказ отклонён', class: 'rejected' },
-            'expo_on': { text: '📍 Поставлен на экспо', class: 'expo_on' },
-            'expo_off': { text: '📍 Снят с экспо', class: 'expo_off' }
-        };
+    // === СЛОВАРЬ СТАТУСОВ (Красивые заголовки) ===
+    const statusMap = {
+        'confirmed': { text: '✅ Заказ подтверждён', class: 'confirmed' },
+        'rejected': { text: '❌ Заказ отклонён', class: 'rejected' },
+        'expo_on': { text: '📍 Поставлен на экспо', class: 'expo_on' },
+        'expo_off': { text: '📍 Снят с экспо', class: 'expo_off' }
+    };
 
-        // === ФУНКЦИЯ: Переключение видов ===
-        function switchView(view) {
-            document.getElementById('mainSection').classList.add('hidden');
-            document.getElementById('notificationsSection').classList.add('hidden');
-            document.getElementById('searchError').classList.add('hidden');
+    // === ФУНКЦИЯ: Переключение видов ===
+    function switchView(view) {
+        document.getElementById('mainSection').classList.add('hidden');
+        document.getElementById('notificationsSection').classList.add('hidden');
+        document.getElementById('searchError').classList.add('hidden');
 
-            if (view === 'main') {
-                document.getElementById('mainSection').classList.remove('hidden');
-            } else if (view === 'notifications') {
-                document.getElementById('notificationsSection').classList.remove('hidden');
-                if (document.getElementById('notificationsContainer').innerText.includes('Загрузка')) {
-                    loadNotifications(false);
-                }
+        if (view === 'main') {
+            document.getElementById('mainSection').classList.remove('hidden');
+        } else if (view === 'notifications') {
+            document.getElementById('notificationsSection').classList.remove('hidden');
+            // Запускаем загрузку только если контейнер пуст или в состоянии "Загрузка"
+            if (document.getElementById('notificationsContainer').innerText.includes('Загрузка') || document.getElementById('notificationsContainer').children.length === 0) {
+                loadNotifications(false);
             }
         }
+    }
 
-        // === ФУНКЦИЯ: Счётчик (только непрочитанные) ===
-        async function updateUnreadCount() {
-            try {
-                const response = await fetch(`/api/notifications?unread_only=true&limit=0`, { method: 'GET', credentials: 'include' });
-                if (!response.ok) return;
-                const data = await response.json();
-                const count = data.total_count || 0;
-                const badge = document.getElementById('unread-badge');
-                
-                if (count > 0) {
-                    badge.textContent = count;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-            } catch (e) { console.error("Ошибка счётчика:", e); }
-        }
-
-        // === ФУНКЦИЯ: Загрузка уведомлений ===
-        async function loadNotifications(unreadOnly = false) {
-            if (loadingNotifications) return;
-            loadingNotifications = true;
-            currentFilterUnread = unreadOnly;
-            notificationOffset = 0;
-            allNotificationsLoaded = false;
-
-            const container = document.getElementById('notificationsContainer');
-            const loadMoreBtn = document.getElementById('loadMoreNotificationsBtn');
-            loadMoreBtn.classList.add('hidden');
-            container.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Загрузка...</div>';
-
-            try {
-                const response = await fetch(`/api/notifications?limit=${notificationLimit}&offset=${notificationOffset}&unread_only=${currentFilterUnread}`, {
-                    method: 'GET', credentials: 'include'
-                });
-
-                if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
-                const data = await response.json();
-
-                container.innerHTML = '';
-                if (data.notifications.length === 0) {
-                    container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px;">Нет уведомлений</div>';
-                } else {
-                    renderNotifications(data.notifications);
-                    notificationOffset += data.notifications.length;
-                    if (data.notifications.length < notificationLimit) allNotificationsLoaded = true;
-                    if (!allNotificationsLoaded) loadMoreBtn.classList.remove('hidden');
-                }
-                updateUnreadCount();
-            } catch (e) {
-                console.error(e);
-                container.innerHTML = '<div class="error" style="text-align:center;">Ошибка загрузки</div>';
-            } finally {
-                loadingNotifications = false;
-            }
-        }
-
-        // === ФУНКЦИЯ: Рендер (Время GMT+3 + Метаданные) ===
-        function renderNotifications(notifications, append = false) {
-            const container = document.getElementById('notificationsContainer');
-            if (!append) container.innerHTML = '';
-
-            notifications.forEach(notif => {
-                const itemEl = document.createElement('div');
-                const statusInfo = statusMap[notif.action] || { text: notif.action, class: '' };
-                
-                // Класс карточки (подсветка)
-                let itemClass = `notification-item ${notif.is_read ? '' : 'unread'} ${statusInfo.class}`;
-
-                // === ИСПРАВЛЕНИЕ ВРЕМЕНИ (GMT+3) ===
-                const dateObj = new Date(notif.created_at);
-                // Явно указываем таймзону Москвы
-                const formattedDate = dateObj.toLocaleString('ru-RU', { 
-                    timeZone: 'Europe/Moscow',
-                    day: 'numeric', month: 'numeric', year: '2-digit',
-                    hour: '2-digit', minute: '2-digit'
-                });
-
-                itemEl.className = itemClass;
-                itemEl.dataset.id = notif.id;
-
-                itemEl.innerHTML = `
-                    <div class="notification-header">
-                        <div class="notification-title">${statusInfo.text}</div>
-                        <div class="notification-time">${formattedDate}</div>
-                    </div>
-                    <div class="notification-message">${notif.message}</div>
-                    <div class="notification-meta">
-                        <span>📦 Арт: ${notif.article || 'N/A'}</span>
-                        <span>🗓 Лист: ${notif.sheet_name}, стр. ${notif.row_number}</span>
-                    </div>
-                    ${!notif.is_read ? `
-                    <div class="notification-controls">
-                        <button onclick="markSingleNotificationAsRead(${notif.id}, this)">✅ Прочитано</button>
-                    </div>
-                    ` : ''}
-                `;
-                container.appendChild(itemEl);
-            });
-        }
-
-        // === ФУНКЦИЯ: Загрузить ещё ===
-        async function loadMoreNotifications() {
-            if (loadingNotifications || allNotificationsLoaded) return;
-            loadingNotifications = true;
-            const loadMoreBtn = document.getElementById('loadMoreNotificationsBtn');
-            loadMoreBtn.disabled = true;
-
-            try {
-                const response = await fetch(`/api/notifications?limit=${notificationLimit}&offset=${notificationOffset}&unread_only=${currentFilterUnread}`, {
-                    method: 'GET', credentials: 'include'
-                });
-                const data = await response.json();
-                if (data.notifications.length > 0) {
-                    renderNotifications(data.notifications, true);
-                    notificationOffset += data.notifications.length;
-                }
-                if (data.notifications.length < notificationLimit) {
-                    allNotificationsLoaded = true;
-                    loadMoreBtn.classList.add('hidden');
-                }
-            } catch (e) { console.error(e); }
-            finally { loadingNotifications = false; loadMoreBtn.disabled = false; }
-        }
-
-        // === ФУНКЦИЯ: Отметить прочитанным ===
-        async function markSingleNotificationAsRead(id, button) {
-            await markNotificationsAsRead([id]);
-            const item = button.closest('.notification-item');
-            if (item) {
-                item.classList.remove('unread', 'rejected', 'expo_on'); // Убираем стили непрочитанного
-                item.classList.add('confirmed'); // Обычный вид
-                const controls = button.closest('.notification-controls');
-                if (controls) controls.remove();
-            }
-        }
-
-        async function markNotificationsAsRead(ids) {
-            try {
-                await fetch('/api/notifications/read', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notification_ids: ids }),
-                    credentials: 'include'
-                });
-                updateUnreadCount(); // Обновляем бейдж
-            } catch (e) { console.error(e); }
-        }
-
-        // === ФУНКЦИИ ПОИСКА И ЗАКАЗА ===
-        async function searchProduct() {
-            const article = document.getElementById('article').value.trim();
-            const shop = document.getElementById('shop').value.trim();
-            const errorDiv = document.getElementById('searchError');
-            errorDiv.classList.add('hidden');
-            if (!article || !shop) { errorDiv.textContent = '⚠️ Заполните все поля'; errorDiv.classList.remove('hidden'); return; }
-
-            try {
-                const response = await fetch('/api/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({ article, shop }),
-                    credentials: 'include'
-                });
-                const result = await response.json();
-                if (response.ok && result.found) {
-                    document.getElementById('pArticle').textContent = result.data['Артикул'];
-                    document.getElementById('pName').textContent = result.data['Название'];
-                    document.getElementById('pDepartment').textContent = result.data['Отдел'];
-                    document.getElementById('pSupplier').textContent = result.data['Поставщик'];
-                    document.getElementById('pOrderDate').textContent = result.data['Дата заказа'];
-                    document.getElementById('pDeliveryDate').textContent = result.data['Дата поставки'];
-                    document.getElementById('formShop').value = result.data['Магазин'];
-                    document.getElementById('formArticle').value = result.data['Артикул'];
-                    document.getElementById('formDepartment').value = result.data['Отдел'];
-                    document.getElementById('productSection').classList.remove('hidden');
-                    document.getElementById('productSection').scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    errorDiv.textContent = result.message || 'Товар не найден';
-                    errorDiv.classList.remove('hidden');
-                    document.getElementById('productSection').classList.add('hidden');
-                }
-            } catch (e) { errorDiv.textContent = 'Ошибка соединения'; errorDiv.classList.remove('hidden'); }
-        }
-
-        document.getElementById('orderForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const statusDiv = document.getElementById('orderStatus');
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            submitBtn.disabled = true; submitBtn.textContent = '⏳ Отправка...';
+    // === ФУНКЦИЯ: Счётчик (только непрочитанные) ===
+    async function updateUnreadCount() {
+        try {
+            // Запрашиваем только количество (limit=0), сами данные нам тут не нужны
+            const response = await fetch(`/api/notifications?unread_only=true&limit=0`, { method: 'GET', credentials: 'include' });
+            if (!response.ok) return;
+            const data = await response.json();
+            const count = data.total_count || 0;
+            const badge = document.getElementById('unread-badge');
             
-            const formData = new FormData(e.target);
-            const formObj = {}; formData.forEach((v, k) => formObj[k] = v);
-
-            try {
-                const response = await fetch('/api/order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams(formObj),
-                    credentials: 'include'
-                });
-                const result = await response.json();
-                
-                if (response.ok) {
-                    // Красивый вывод успеха
-                    statusDiv.innerHTML = `
-                        <strong>✅ Заказ успешно принят!</strong>
-                        <div class="queue-id-box">
-                            ID: ${result.queue_id}
-                            <button class="copy-btn" onclick="navigator.clipboard.writeText('${result.queue_id}')" title="Скопировать ID">
-                                📋
-                            </button>
-                        </div>
-                    `;
-                    statusDiv.className = 'status success'; 
-                    statusDiv.classList.remove('hidden');
-                    
-                    submitBtn.style.display = 'none';
-                    document.getElementById('newOrderBtn').classList.remove('hidden');
-                } else {
-                    statusDiv.textContent = `❌ Ошибка: ${result.detail || 'Неизвестная ошибка'}`;
-                    statusDiv.className = 'status error'; 
-                    statusDiv.classList.remove('hidden');
-                }
-            } catch (e) { 
-                statusDiv.textContent = 'Ошибка сети'; 
-                statusDiv.className = 'status error'; 
-                statusDiv.classList.remove('hidden'); 
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
             }
-            finally { submitBtn.disabled = false; submitBtn.textContent = '✅ Подтвердить'; }
-        });
+        } catch (e) { console.error("Ошибка счётчика:", e); }
+    }
 
-        function resetForm() {
-            document.getElementById('productSection').classList.add('hidden');
-            document.getElementById('article').value = '';
-            document.getElementById('shop').value = '';
-            document.getElementById('orderStatus').classList.add('hidden');
-            document.getElementById('newOrderBtn').classList.add('hidden');
-            document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
-            document.getElementById('orderForm').reset();
+    // === POLLING: Обновление счетчика раз в минуту ===
+    setInterval(updateUnreadCount, 60000); 
+
+    // === ФУНКЦИЯ: Загрузка уведомлений ===
+    async function loadNotifications(unreadOnly = false) {
+        if (loadingNotifications) return;
+        loadingNotifications = true;
+        currentFilterUnread = unreadOnly;
+        notificationOffset = 0;
+        allNotificationsLoaded = false;
+
+        const container = document.getElementById('notificationsContainer');
+        const loadMoreBtn = document.getElementById('loadMoreNotificationsBtn');
+        loadMoreBtn.classList.add('hidden');
+        container.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Загрузка...</div>';
+
+        try {
+            const response = await fetch(`/api/notifications?limit=${notificationLimit}&offset=${notificationOffset}&unread_only=${currentFilterUnread}`, {
+                method: 'GET', credentials: 'include'
+            });
+
+            if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
+            const data = await response.json();
+
+            container.innerHTML = '';
+            if (data.notifications.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px;">Нет уведомлений</div>';
+            } else {
+                renderNotifications(data.notifications);
+                notificationOffset += data.notifications.length;
+                if (data.notifications.length < notificationLimit) allNotificationsLoaded = true;
+                if (!allNotificationsLoaded) loadMoreBtn.classList.remove('hidden');
+            }
+            updateUnreadCount();
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = '<div class="error" style="text-align:center;">Ошибка загрузки</div>';
+        } finally {
+            loadingNotifications = false;
+        }
+    }
+
+    // === ФУНКЦИЯ: Рендер (Время GMT+3 + Метаданные) ===
+    function renderNotifications(notifications, append = false) {
+        const container = document.getElementById('notificationsContainer');
+        if (!append) container.innerHTML = '';
+
+        notifications.forEach(notif => {
+            const itemEl = document.createElement('div');
+            const statusInfo = statusMap[notif.action] || { text: notif.action, class: '' };
+            
+            // Класс карточки (подсветка)
+            let itemClass = `notification-item ${notif.is_read ? '' : 'unread'} ${statusInfo.class}`;
+
+            // === ИСПРАВЛЕНИЕ ВРЕМЕНИ (GMT+3) ===
+            // Бэкенд возвращает UTC. Преобразуем в Московское время.
+            const dateObj = new Date(notif.created_at);
+            const formattedDate = dateObj.toLocaleString('ru-RU', { 
+                timeZone: 'Europe/Moscow',
+                day: 'numeric', month: 'numeric', year: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            itemEl.className = itemClass;
+            itemEl.dataset.id = notif.id;
+
+            itemEl.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-title">${statusInfo.text}</div>
+                    <div class="notification-time">${formattedDate}</div>
+                </div>
+                <div class="notification-message">${notif.message}</div>
+                <div class="notification-meta">
+                    <span>📦 Арт: ${notif.article || 'N/A'}</span>
+                    <span>🗓 Лист: ${notif.sheet_name}, стр. ${notif.row_number}</span>
+                </div>
+                ${!notif.is_read ? `
+                <div class="notification-controls">
+                    <button onclick="markSingleNotificationAsRead(${notif.id}, this)">✅ Прочитано</button>
+                </div>
+                ` : ''}
+            `;
+            container.appendChild(itemEl);
+        });
+    }
+
+    // === ФУНКЦИЯ: Загрузить ещё ===
+    async function loadMoreNotifications() {
+        if (loadingNotifications || allNotificationsLoaded) return;
+        loadingNotifications = true;
+        const loadMoreBtn = document.getElementById('loadMoreNotificationsBtn');
+        loadMoreBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/api/notifications?limit=${notificationLimit}&offset=${notificationOffset}&unread_only=${currentFilterUnread}`, {
+                method: 'GET', credentials: 'include'
+            });
+            const data = await response.json();
+            if (data.notifications.length > 0) {
+                renderNotifications(data.notifications, true);
+                notificationOffset += data.notifications.length;
+            }
+            if (data.notifications.length < notificationLimit) {
+                allNotificationsLoaded = true;
+                loadMoreBtn.classList.add('hidden');
+            }
+        } catch (e) { console.error(e); }
+        finally { loadingNotifications = false; loadMoreBtn.disabled = false; }
+    }
+
+    // === ФУНКЦИЯ: Отметить прочитанным ===
+    async function markSingleNotificationAsRead(id, button) {
+        await markNotificationsAsRead([id]);
+        const item = button.closest('.notification-item');
+        if (item) {
+            item.classList.remove('unread', 'rejected', 'expo_on'); // Убираем цветные подсветки
+            item.classList.add('confirmed'); // Делаем нейтральным
+            const controls = button.closest('.notification-controls');
+            if (controls) controls.remove(); // Удаляем кнопку
+        }
+    }
+
+    async function markNotificationsAsRead(ids) {
+        try {
+            await fetch('/api/notifications/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notification_ids: ids }),
+                credentials: 'include'
+            });
+            updateUnreadCount(); // Обновляем бейдж в шапке
+        } catch (e) { console.error(e); }
+    }
+
+    // === ФУНКЦИИ ПОИСКА И ЗАКАЗА ===
+    async function searchProduct() {
+        const article = document.getElementById('article').value.trim();
+        const shop = document.getElementById('shop').value.trim();
+        const errorDiv = document.getElementById('searchError');
+        errorDiv.classList.add('hidden');
+        
+        if (!article || !shop) {
+            errorDiv.textContent = '⚠️ Заполните все поля'; 
+            errorDiv.classList.remove('hidden'); 
+            return; 
         }
 
-        // Инициализация
-        document.getElementById('article').addEventListener('keypress', (e) => { if (e.key === 'Enter') searchProduct(); });
-        document.addEventListener('DOMContentLoaded', () => updateUnreadCount());
+        try {
+            const response = await fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ article, shop }),
+                credentials: 'include'
+            });
+            const result = await response.json();
+            
+            if (response.ok && result.found) {
+                // ВНИМАНИЕ: Используем ключи как на бэкенде (русские)
+                document.getElementById('pArticle').textContent = result.data['Артикул'];
+                document.getElementById('pName').textContent = result.data['Название'];
+                document.getElementById('pDepartment').textContent = result.data['Отдел'];
+                document.getElementById('pSupplier').textContent = result.data['Поставщик'];
+                document.getElementById('pOrderDate').textContent = result.data['Дата заказа'];
+                document.getElementById('pDeliveryDate').textContent = result.data['Дата поставки'];
+                
+                // Hidden inputs
+                document.getElementById('formShop').value = result.data['Магазин'];
+                document.getElementById('formArticle').value = result.data['Артикул'];
+                document.getElementById('formDepartment').value = result.data['Отдел'];
+                
+                document.getElementById('productSection').classList.remove('hidden');
+                document.getElementById('productSection').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                errorDiv.textContent = result.message || 'Товар не найден';
+                errorDiv.classList.remove('hidden');
+                document.getElementById('productSection').classList.add('hidden');
+            }
+        } catch (e) { 
+            errorDiv.textContent = 'Ошибка соединения'; 
+            errorDiv.classList.remove('hidden'); 
+        }
+    }
 
-    </script>
+    // Обработчик отправки заказа
+    document.getElementById('orderForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const statusDiv = document.getElementById('orderStatus');
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true; 
+        submitBtn.textContent = '⏳ Отправка...';
+        
+        const formData = new FormData(e.target);
+        // Преобразуем FormData в обычный объект для отправки
+        const formObj = {};
+        formData.forEach((v, k) => formObj[k] = v);
+
+        try {
+            const response = await fetch('/api/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(formObj), // Отправляем как form-urlencoded
+                credentials: 'include'
+            });
+            const result = await response.json();
+            
+            if (response.ok) {
+                // Красивый вывод успеха с ID
+                statusDiv.innerHTML = `
+                    <strong>✅ Заказ успешно принят!</strong>
+                    <div class="queue-id-box">
+                        ID: ${result.queue_id}
+                        <button class="copy-btn" onclick="navigator.clipboard.writeText('${result.queue_id}')" title="Скопировать ID">
+                            📋
+                        </button>
+                    </div>
+                `;
+                statusDiv.className = 'status success'; 
+                statusDiv.classList.remove('hidden');
+                
+                submitBtn.style.display = 'none';
+                document.getElementById('newOrderBtn').classList.remove('hidden');
+            } else {
+                statusDiv.textContent = `❌ Ошибка: ${result.detail || 'Неизвестная ошибка'}`;
+                statusDiv.className = 'status error'; 
+                statusDiv.classList.remove('hidden');
+            }
+        } catch (e) { 
+            statusDiv.textContent = 'Ошибка сети'; 
+            statusDiv.className = 'status error'; 
+            statusDiv.classList.remove('hidden'); 
+        }
+        finally { 
+            submitBtn.disabled = false; 
+            submitBtn.textContent = '✅ Подтвердить'; 
+        }
+    });
+
+    function resetForm() {
+        document.getElementById('productSection').classList.add('hidden');
+        document.getElementById('article').value = '';
+        document.getElementById('shop').value = '';
+        document.getElementById('orderStatus').classList.add('hidden');
+        document.getElementById('newOrderBtn').classList.add('hidden');
+        document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
+        document.getElementById('orderForm').reset();
+    }
+
+    // Инициализация
+    document.getElementById('article').addEventListener('keypress', (e) => { if (e.key === 'Enter') searchProduct(); });
+    document.addEventListener('DOMContentLoaded', () => updateUnreadCount());
+
+</script>
 </body>
 </html>
