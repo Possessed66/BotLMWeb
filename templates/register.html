@@ -51,6 +51,9 @@
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
+        input:invalid {
+            border-color: #ef4444; /* Красная рамка если не проходит pattern */
+        }
         button {
             background: #2563eb;
             color: white;
@@ -69,8 +72,11 @@
         .error {
             color: #dc2626;
             font-size: 0.9rem;
-            margin-top: 8px;
+            margin-top: 12px;
             text-align: center;
+            background: #fef2f2;
+            padding: 10px;
+            border-radius: 6px;
         }
         .link {
             text-align: center;
@@ -81,8 +87,10 @@
             color: #2563eb;
             text-decoration: none;
         }
-        .link a:hover {
-            text-decoration: underline;
+        .hint {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 4px;
         }
     </style>
 </head>
@@ -92,18 +100,18 @@
         <form method="post" action="/register">
             <div class="form-group">
                 <label for="username">Логин</label>
-                <input type="text" id="username" name="username" placeholder="Придумайте логин" required>
+                <!-- pattern запрещает ввод цифр и спецсимволов, разрешает только буквы и подчеркивание -->
+                <input type="text" id="username" name="username" placeholder="ivanov_ii" required 
+                       pattern="[A-Za-z_]+" title="Только латинские буквы (A-Z, a-z) и подчеркивание">
+                <div class="hint">Используйте только буквы (без цифр и табельных номеров).</div>
             </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" placeholder="your@email.com" required>
-            </div>
+            <!-- Поле Email УДАЛЕНО -->
             <div class="form-group">
                 <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" placeholder="Придумайте пароль" required>
+                <input type="password" id="password" name="password" placeholder="Минимум 6 символов" required minlength="6">
             </div>
             <div class="form-group">
-                <label for="position">Должность (необязательно)</label>
+                <label for="position">Должность</label>
                 <input type="text" id="position" name="position" placeholder="Например: менеджер">
             </div>
             <button type="submit">✅ Зарегистрироваться</button>
