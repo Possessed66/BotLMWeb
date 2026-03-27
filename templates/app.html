@@ -68,7 +68,7 @@
             background: var(--primary); color: white; border: none;
             padding: 12px 20px; border-radius: 8px; font-size: 1rem;
             font-weight: 500; cursor: pointer; width: 100%;
-            transition: background 0.2s;
+            transition: all 0.2s;
         }
         button:hover { background: #1d4ed8; }
         button:disabled { background: #cbd5e1; cursor: not-allowed; }
@@ -83,14 +83,43 @@
         .info-label { color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
         .info-value { font-weight: 500; color: var(--text); }
 
-        .status { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
-        .status.success { background: #ecfdf5; color: #065f46; border-left: 4px solid var(--success); }
-        .status.error { background: #fef2f2; color: #991b1b; border-left: 4px solid var(--error); }
+        /* === СТИЛИ СТАТУСОВ И УВЕДОМЛЕНИЙ (ОБНОВЛЕНО) === */
+        
+        .status {
+            margin-top: 16px; padding: 12px 16px; border-radius: 8px;
+            font-size: 0.95rem; border-left: 5px solid transparent;
+        }
+        .status.success {
+            background: #f0fdf4; color: #166534; border-left-color: var(--success);
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .status.success strong { font-size: 1.05rem; display: block; margin-bottom: 4px; }
+        
+        /* Плашка для ID заказа */
+        .queue-id-box {
+            background: rgba(22, 101, 52, 0.1);
+            padding: 4px 10px; border-radius: 6px;
+            font-family: 'Consolas', monospace; font-size: 0.9rem;
+            display: inline-flex; align-items: center; gap: 8px; margin-top: 4px;
+        }
+        .copy-btn {
+            background: transparent !important; color: #166534; cursor: pointer;
+            padding: 0 !important; width: auto !important; font-size: 1rem;
+            opacity: 0.7; transition: opacity 0.2s;
+        }
+        .copy-btn:hover { opacity: 1; }
+
+        /* Кнопка Новый Заказ */
+        #newOrderBtn {
+            background: var(--primary);
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        }
+        #newOrderBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 8px rgba(37, 99, 235, 0.3); }
+
         .hidden { display: none; }
 
         .footer-note { font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
 
-        /* Адаптивность */
         @media (max-width: 768px) {
             .container { padding: 12px; }
             .card { padding: 16px; }
@@ -98,25 +127,32 @@
             .header { flex-direction: column; gap: 12px; align-items: stretch; }
         }
 
-        /* Стили уведомлений */
+        /* --- Уведомления --- */
         .notification-item {
             background: var(--card-bg); border-radius: 8px; padding: 16px;
             margin-bottom: 12px; box-shadow: 0 1px 3px var(--shadow);
-            border-left: 4px solid var(--primary);
+            border-left: 4px solid var(--primary); transition: all 0.2s;
         }
         .notification-item.unread {
             border-left-color: var(--warning);
-            background-color: #fefce8;
+            background-color: #fffbeb; /* Легкий желтый */
         }
-        /* Новые цвета статусов для карточек */
+        /* Цвета статусов */
         .notification-item.rejected { border-left-color: var(--error); background-color: #fff2f2; }
         .notification-item.expo_on { border-left-color: var(--success); background-color: #f0fff4; }
 
         .notification-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .notification-title { font-weight: 600; color: var(--text); } /* Жирнее */
-        .notification-time { font-size: 0.8rem; color: var(--text-muted); }
-        .notification-message { font-size: 0.95rem; color: var(--text); margin-bottom: 8px; }
-        .notification-meta { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+        .notification-title { font-weight: 600; color: var(--text); font-size: 1rem; }
+        .notification-time { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+        
+        .notification-message { font-size: 0.95rem; color: var(--text); margin-bottom: 8px; line-height: 1.5; }
+        
+        .notification-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.8rem; color: var(--text-muted);
+            margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
+        }
+        
         .notification-controls { margin-top: 10px; display: flex; gap: 8px; }
         .notification-controls button { width: auto; padding: 6px 12px; font-size: 0.85rem; }
 
@@ -124,6 +160,7 @@
             background-color: var(--error); color: white; border-radius: 50%;
             padding: 0 6px; font-size: 0.7rem; font-weight: bold;
             position: absolute; top: -6px; right: -6px; min-width: 18px; text-align: center;
+            line-height: 18px; height: 18px;
         }
         .unread-count.hidden { display: none; }
 
@@ -151,7 +188,7 @@
 
         <p class="welcome">Добро пожаловать, <strong>{{ user.username }}</strong> ({{ user.position }})</p>
 
-        <!-- Основная секция -->
+        <!-- ОСНОВНАЯ СЕКЦИЯ -->
         <div id="mainSection">
             <div class="card">
                 <h2>🔍 Найти товар</h2>
@@ -167,6 +204,7 @@
                 <div id="searchError" class="status error hidden"></div>
             </div>
 
+            <!-- Карточка товара (скрыта) -->
             <div id="productSection" class="card hidden">
                 <h2>📦 Информация о товаре</h2>
                 <div class="product-info show">
@@ -198,7 +236,7 @@
             </div>
         </div>
 
-        <!-- Секция Уведомлений -->
+        <!-- СЕКЦИЯ УВЕДОМЛЕНИЙ -->
         <div id="notificationsSection" class="card hidden">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h2 style="margin-bottom: 0;">🔔 Уведомления</h2>
@@ -210,7 +248,7 @@
                 <button onclick="loadNotifications(true)" style="background: #6b7280;">📋 Непрочитанные</button>
             </div>
 
-            <div id="notificationsContainer"><div class="loading">Загрузка...</div></div>
+            <div id="notificationsContainer"><div style="text-align:center; color:var(--text-muted);">Загрузка...</div></div>
             <button id="loadMoreNotificationsBtn" class="btn-secondary hidden" onclick="loadMoreNotifications()">Загрузить ещё</button>
         </div>
 
@@ -226,7 +264,7 @@
         let allNotificationsLoaded = false;
         let currentFilterUnread = false;
 
-        // === СЛОВАРЬ СТАТУСОВ (Для красивого отображения) ===
+        // === СЛОВАРЬ СТАТУСОВ (Красивые заголовки) ===
         const statusMap = {
             'confirmed': { text: '✅ Заказ подтверждён', class: 'confirmed' },
             'rejected': { text: '❌ Заказ отклонён', class: 'rejected' },
@@ -244,32 +282,28 @@
                 document.getElementById('mainSection').classList.remove('hidden');
             } else if (view === 'notifications') {
                 document.getElementById('notificationsSection').classList.remove('hidden');
-                if (document.getElementById('notificationsContainer').innerHTML.includes('Загрузка')) {
+                if (document.getElementById('notificationsContainer').innerText.includes('Загрузка')) {
                     loadNotifications(false);
                 }
             }
         }
 
-        // === ФУНКЦИЯ: Обновление счётчика (ТОЛЬКО НЕПРОЧИТАННЫЕ) ===
+        // === ФУНКЦИЯ: Счётчик (только непрочитанные) ===
         async function updateUnreadCount() {
             try {
-                // Запрашиваем только count, сами данные не грузим
                 const response = await fetch(`/api/notifications?unread_only=true&limit=0`, { method: 'GET', credentials: 'include' });
                 if (!response.ok) return;
-
                 const data = await response.json();
-                const count = data.total_count; // Бэкенд уже отдает правильное число
+                const count = data.total_count || 0;
                 const badge = document.getElementById('unread-badge');
                 
                 if (count > 0) {
                     badge.textContent = count;
                     badge.classList.remove('hidden');
                 } else {
-                    badge.classList.add('hidden'); // Скрываем бейдж, если нет новых
+                    badge.classList.add('hidden');
                 }
-            } catch (e) {
-                console.error("Ошибка обновления счётчика:", e);
-            }
+            } catch (e) { console.error("Ошибка счётчика:", e); }
         }
 
         // === ФУНКЦИЯ: Загрузка уведомлений ===
@@ -283,7 +317,7 @@
             const container = document.getElementById('notificationsContainer');
             const loadMoreBtn = document.getElementById('loadMoreNotificationsBtn');
             loadMoreBtn.classList.add('hidden');
-            container.innerHTML = '<div class="loading">Загрузка уведомлений...</div>';
+            container.innerHTML = '<div style="text-align:center; color:var(--text-muted);">Загрузка...</div>';
 
             try {
                 const response = await fetch(`/api/notifications?limit=${notificationLimit}&offset=${notificationOffset}&unread_only=${currentFilterUnread}`, {
@@ -295,46 +329,40 @@
 
                 container.innerHTML = '';
                 if (data.notifications.length === 0) {
-                    container.innerHTML = '<div class="error" style="text-align:center; color:var(--text-muted);">Нет уведомлений</div>';
+                    container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px;">Нет уведомлений</div>';
                 } else {
                     renderNotifications(data.notifications);
                     notificationOffset += data.notifications.length;
                     if (data.notifications.length < notificationLimit) allNotificationsLoaded = true;
                     if (!allNotificationsLoaded) loadMoreBtn.classList.remove('hidden');
                 }
-                
-                updateUnreadCount(); // Обновляем счетчик после загрузки
-
+                updateUnreadCount();
             } catch (e) {
                 console.error(e);
-                container.innerHTML = '<div class="error">Ошибка загрузки</div>';
+                container.innerHTML = '<div class="error" style="text-align:center;">Ошибка загрузки</div>';
             } finally {
                 loadingNotifications = false;
             }
         }
 
-        // === ФУНКЦИЯ: Рендер (ИСПРАВЛЕННОЕ ВРЕМЯ И ЗАГОЛОВКИ) ===
+        // === ФУНКЦИЯ: Рендер (Время GMT+3 + Метаданные) ===
         function renderNotifications(notifications, append = false) {
             const container = document.getElementById('notificationsContainer');
             if (!append) container.innerHTML = '';
 
             notifications.forEach(notif => {
                 const itemEl = document.createElement('div');
-                
-                // Получаем стиль статуса
                 const statusInfo = statusMap[notif.action] || { text: notif.action, class: '' };
                 
-                // Определяем класс для подкраски карточки
+                // Класс карточки (подсветка)
                 let itemClass = `notification-item ${notif.is_read ? '' : 'unread'} ${statusInfo.class}`;
 
-                // === ИСПРАВЛЕНИЕ ВРЕМЕНИ (GMT+0 -> GMT+3) ===
-                // Бэкенд присылает "2023-10-27T10:00:00" (это UTC)
-                // new Date() распарсит это как UTC.
-                // .toLocaleString('ru-RU') автоматически переведёт в локальное время браузера (обычно МСК)
+                // === ИСПРАВЛЕНИЕ ВРЕМЕНИ (GMT+3) ===
                 const dateObj = new Date(notif.created_at);
+                // Явно указываем таймзону Москвы
                 const formattedDate = dateObj.toLocaleString('ru-RU', { 
-                    timeZone: 'Europe/Moscow', // Явно указываем таймзону
-                    day: 'numeric', month: 'numeric', year: 'numeric',
+                    timeZone: 'Europe/Moscow',
+                    day: 'numeric', month: 'numeric', year: '2-digit',
                     hour: '2-digit', minute: '2-digit'
                 });
 
@@ -343,15 +371,13 @@
 
                 itemEl.innerHTML = `
                     <div class="notification-header">
-                        <!-- Красивый заголовок статуса -->
                         <div class="notification-title">${statusInfo.text}</div>
-                        <!-- Исправленное время -->
                         <div class="notification-time">${formattedDate}</div>
                     </div>
-                    <!-- Основное сообщение -->
                     <div class="notification-message">${notif.message}</div>
                     <div class="notification-meta">
-                        📦 Артикул: ${notif.article || 'N/A'} | 🏪 Лист: ${notif.sheet_name}:${notif.row_number}
+                        <span>📦 Арт: ${notif.article || 'N/A'}</span>
+                        <span>🗓 Лист: ${notif.sheet_name}, стр. ${notif.row_number}</span>
                     </div>
                     ${!notif.is_read ? `
                     <div class="notification-controls">
@@ -375,12 +401,10 @@
                     method: 'GET', credentials: 'include'
                 });
                 const data = await response.json();
-                
                 if (data.notifications.length > 0) {
                     renderNotifications(data.notifications, true);
                     notificationOffset += data.notifications.length;
                 }
-                
                 if (data.notifications.length < notificationLimit) {
                     allNotificationsLoaded = true;
                     loadMoreBtn.classList.add('hidden');
@@ -394,8 +418,8 @@
             await markNotificationsAsRead([id]);
             const item = button.closest('.notification-item');
             if (item) {
-                item.classList.remove('unread');
-                item.classList.add('confirmed'); // Возвращаем обычный вид
+                item.classList.remove('unread', 'rejected', 'expo_on'); // Убираем стили непрочитанного
+                item.classList.add('confirmed'); // Обычный вид
                 const controls = button.closest('.notification-controls');
                 if (controls) controls.remove();
             }
@@ -403,23 +427,23 @@
 
         async function markNotificationsAsRead(ids) {
             try {
-                const response = await fetch('/api/notifications/read', {
+                await fetch('/api/notifications/read', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notification_ids: ids }),
                     credentials: 'include'
                 });
-                if (response.ok) updateUnreadCount();
+                updateUnreadCount(); // Обновляем бейдж
             } catch (e) { console.error(e); }
         }
 
-        // === ФУНКЦИИ ПОИСКА И ЗАКАЗА (без изменений) ===
+        // === ФУНКЦИИ ПОИСКА И ЗАКАЗА ===
         async function searchProduct() {
             const article = document.getElementById('article').value.trim();
             const shop = document.getElementById('shop').value.trim();
             const errorDiv = document.getElementById('searchError');
             errorDiv.classList.add('hidden');
-            if (!article || !shop) { errorDiv.textContent = '⚠️ Заполните поля'; errorDiv.classList.remove('hidden'); return; }
+            if (!article || !shop) { errorDiv.textContent = '⚠️ Заполните все поля'; errorDiv.classList.remove('hidden'); return; }
 
             try {
                 const response = await fetch('/api/search', {
@@ -442,11 +466,11 @@
                     document.getElementById('productSection').classList.remove('hidden');
                     document.getElementById('productSection').scrollIntoView({ behavior: 'smooth' });
                 } else {
-                    errorDiv.textContent = result.message || 'Не найдено';
+                    errorDiv.textContent = result.message || 'Товар не найден';
                     errorDiv.classList.remove('hidden');
                     document.getElementById('productSection').classList.add('hidden');
                 }
-            } catch (e) { errorDiv.textContent = 'Ошибка сети'; errorDiv.classList.remove('hidden'); }
+            } catch (e) { errorDiv.textContent = 'Ошибка соединения'; errorDiv.classList.remove('hidden'); }
         }
 
         document.getElementById('orderForm').addEventListener('submit', async (e) => {
@@ -466,16 +490,33 @@
                     credentials: 'include'
                 });
                 const result = await response.json();
+                
                 if (response.ok) {
-                    statusDiv.innerHTML = `✅ Заказ принят! ID: ${result.queue_id}`;
-                    statusDiv.className = 'status success'; statusDiv.classList.remove('hidden');
+                    // Красивый вывод успеха
+                    statusDiv.innerHTML = `
+                        <strong>✅ Заказ успешно принят!</strong>
+                        <div class="queue-id-box">
+                            ID: ${result.queue_id}
+                            <button class="copy-btn" onclick="navigator.clipboard.writeText('${result.queue_id}')" title="Скопировать ID">
+                                📋
+                            </button>
+                        </div>
+                    `;
+                    statusDiv.className = 'status success'; 
+                    statusDiv.classList.remove('hidden');
+                    
                     submitBtn.style.display = 'none';
                     document.getElementById('newOrderBtn').classList.remove('hidden');
                 } else {
-                    statusDiv.textContent = `❌ Ошибка: ${result.detail}`;
-                    statusDiv.className = 'status error'; statusDiv.classList.remove('hidden');
+                    statusDiv.textContent = `❌ Ошибка: ${result.detail || 'Неизвестная ошибка'}`;
+                    statusDiv.className = 'status error'; 
+                    statusDiv.classList.remove('hidden');
                 }
-            } catch (e) { statusDiv.textContent = 'Ошибка сети'; statusDiv.className = 'status error'; statusDiv.classList.remove('hidden'); }
+            } catch (e) { 
+                statusDiv.textContent = 'Ошибка сети'; 
+                statusDiv.className = 'status error'; 
+                statusDiv.classList.remove('hidden'); 
+            }
             finally { submitBtn.disabled = false; submitBtn.textContent = '✅ Подтвердить'; }
         });
 
@@ -489,6 +530,7 @@
             document.getElementById('orderForm').reset();
         }
 
+        // Инициализация
         document.getElementById('article').addEventListener('keypress', (e) => { if (e.key === 'Enter') searchProduct(); });
         document.addEventListener('DOMContentLoaded', () => updateUnreadCount());
 
