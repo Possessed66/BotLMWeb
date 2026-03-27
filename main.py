@@ -14,7 +14,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 from logger import get_logger
 
 # === FASTAPI & PYDANTIC ===
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query, Response, RedirectResponse
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query, Response
+from starlette.responses import RedirectResponse
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
