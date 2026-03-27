@@ -393,7 +393,8 @@ async def get_login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
-async def login(response: RedirectResponse, username: str = Form(...), password: str = Form(...)):
+@limiter.limit("5/5minute") 
+async def login(request: Request, response: Response, username: str = Form(...), password: str = Form(...)):
     db = SessionLocal()
     user = db.query(User).filter(User.username == username).first()
     db.close()
@@ -408,14 +409,13 @@ async def login(response: RedirectResponse, username: str = Form(...), password:
     token = create_access_token(data=token_data)
 
     response = RedirectResponse(url="/", status_code=303)
-    # 🔐 HttpOnly=True для безопасности
     response.set_cookie(
         key="access_token",
         value=token,
-        httponly=True,  # 🔐
-        secure=False,   # Если HTTPS, поменяй на True
-        samesite="lax",
-        max_age=1800    # 30 минут
+        httponly=True,  # Защита от XSS
+        secure=False,   # Поставь True для HTTPS!
+        samesite="lax", # Защита от CSRF
+        max_age=1800
     )
     return response
     
@@ -441,9 +441,35 @@ async def show_notifications(request: Request, access_token: str = Cookie(None))
 
 
 @app.post("/register")
-async def register(username: str = Form(...), email: str = Form(...), password: str = Form(...), position: str = Form(...)):
+async def register(
+    request: Request, 
+    username: str = Form(...), 
+    password: str = Form(...), 
+    position: str = Form("")
+):
+    # 1. Проверка: логин не должен быть только числовым (защита sensitive данных)
+    # Разрешаем буквы, подчеркивания, дефисы, но запрещаем строку, состоящую ТОЛЬКО из цифр
+    if username.isdigit():
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "error": "Логин не может состоять только из цифр. Используйте буквенное обозначение."
+        })
+    
+    # Дополнительная проверка: только латинские буквы и _ (как в HTML форме)
+    if not re.match(r'^[A-Za-z_]+$', username):
+         return templates.TemplateResponse("register.html", {
+            "request": request,
+            "error": "Логин может содержать только латинские буквы и подчеркивание."
+        })
+
+    if len(password) < 6:
+         return templates.TemplateResponse("register.html", {
+            "request": request,
+            "error": "Пароль должен быть не менее 6 символов."
+        })
+
     db = SessionLocal()
-    existing_user = db.query(User).filter((User.username == username) | (User.email == email)).first()
+    existing_user = db.query(User).filter(User.username == username).first()
     if existing_user:
         db.close()
         return templates.TemplateResponse("register.html", {
@@ -452,7 +478,8 @@ async def register(username: str = Form(...), email: str = Form(...), password: 
         })
 
     hashed_pw = get_password_hash(password)
-    new_user = User(username=username, email=email, hashed_password=hashed_pw, position=position)
+    # Email убран, используем только доступные поля
+    new_user = User(username=username, hashed_password=hashed_pw, position=position)
     db.add(new_user)
     db.commit()
     db.close()
