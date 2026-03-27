@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 # === FASTAPI & PYDANTIC ===
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, BackgroundTasks, Cookie, Query, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
