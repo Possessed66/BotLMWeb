@@ -299,8 +299,9 @@
             const count = data.total_count || 0;
             const badge = document.getElementById('unread-badge');
             
+            // Показываем бейдж ТОЛЬКО если есть непрочитанные уведомления
             if (count > 0) {
-                badge.textContent = count;
+                badge.textContent = count > 99 ? '99+' : count; // Ограничиваем максимум 99+
                 badge.classList.remove('hidden');
             } else {
                 badge.classList.add('hidden');
@@ -308,7 +309,7 @@
         } catch (e) { console.error("Ошибка счётчика:", e); }
     }
 
-    // === POLLING: Обновление счетчика раз в минуту ===
+    // === POLLING: Обновление счетчика каждую минуту + при загрузке страницы ===
     setInterval(updateUnreadCount, 60000); 
 
     // === ФУНКЦИЯ: Загрузка уведомлений ===
@@ -428,6 +429,8 @@
             const controls = button.closest('.notification-controls');
             if (controls) controls.remove(); // Удаляем кнопку
         }
+        // Обновляем счетчик сразу после отметки
+        updateUnreadCount();
     }
 
     async function markNotificationsAsRead(ids) {
@@ -472,6 +475,24 @@
                 document.getElementById('pSupplier').textContent = result.data['Поставщик'];
                 document.getElementById('pOrderDate').textContent = result.data['Дата заказа'];
                 document.getElementById('pDeliveryDate').textContent = result.data['Дата поставки'];
+                
+                // Всегда показываем форму и информируем о датах заказа/поставки
+                const orderForm = document.getElementById('orderForm');
+                orderForm.style.display = 'block';
+                
+                // Удаляем старое сообщение если есть
+                const oldMsg = document.getElementById('unavailableMessage');
+                if (oldMsg) oldMsg.remove();
+                
+                // Показываем информационное сообщение о датах
+                const statusMsg = document.createElement('div');
+                statusMsg.className = 'status show';
+                statusMsg.id = 'unavailableMessage';
+                statusMsg.style.backgroundColor = '#f0fdf4';
+                statusMsg.style.borderLeftColor = '#10b981';
+                statusMsg.innerHTML = `<strong>📅 Даты заказа</strong><br>Дата заказа: ${result.data['Дата заказа']} | Дата поставки: ${result.data['Дата поставки']}`;
+                
+                document.getElementById('productSection').insertBefore(statusMsg, orderForm);
                 
                 // Hidden inputs
                 document.getElementById('formShop').value = result.data['Магазин'];
@@ -553,6 +574,11 @@
         document.getElementById('newOrderBtn').classList.add('hidden');
         document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
         document.getElementById('orderForm').reset();
+        
+        // Сбрасываем форму заказа в видимое состояние (на случай если было сообщение о недоступности)
+        document.getElementById('orderForm').style.display = 'block';
+        const oldMsg = document.getElementById('unavailableMessage');
+        if (oldMsg) oldMsg.remove();
     }
 
     // Инициализация

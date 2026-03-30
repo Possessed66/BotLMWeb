@@ -278,7 +278,7 @@ def get_product_info_from_existing_db(article: str, shop: str) -> Optional[Dict[
         if row:
             supplier_id = row['supplier_code']
             supplier_data = get_supplier_dates_from_existing_db(supplier_id, shop)
-            order_date, delivery_date = calculate_delivery_date_from_supplier_data(supplier_data)
+            order_date, delivery_date, is_available = get_next_supplier_delivery_date(supplier_data)
 
             return {
                 'Артикул': row['article_code'],
@@ -316,12 +316,70 @@ def get_supplier_dates_from_existing_db(supplier_id: str, shop: str) -> Dict[str
             return {}
     return {}
 
-def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) -> tuple[str, str]:
-    # Упрощённый расчет, как в старом коде
+def get_next_supplier_delivery_date(supplier_data: Dict[str, Any]) -> tuple[str, str, bool]:
+    """
+    Рассчитывает следующую доступную дату заказа от поставщика с учётом дней недели.
+    
+    Возвращает: (order_date, delivery_date, is_available)
+    - order_date: дата когда можно сделать заказ
+    - delivery_date: дата доставки в магазин
+    - is_available: доступен ли поставщик для заказа сегодня
+    
+    Примечание: Дни выхода заказа в БД хранятся как числа 0-6 (0=Пн, 6=Вс)
+    """
     today = datetime.now().date()
-    order_date = today.strftime("%d.%m.%Y")
+    today_weekday = today.weekday()  # 0=Пн, 1=Вт, 2=Ср, 3=Чт, 4=Пт, 5=Сб, 6=Вс
+    
+    # Получаем дни выхода заказа из БД (уже числа 0-6)
+    order_days = []
+    for field in ["День выхода заказа", "День выхода заказа 2", "День выхода заказа 3"]:
+        day_value = supplier_data.get(field)
+        if day_value is not None:
+            try:
+                # В БД уже числа, просто преобразуем в int
+                day_num = int(day_value)
+                if 0 <= day_num <= 6:
+                    order_days.append(day_num)
+            except (ValueError, TypeError):
+                continue
+    
+    # Если дней выхода не найдено, используем дефолт (заказ сегодня)
+    if not order_days:
+        delivery_days = supplier_data.get("Срок доставки в магазин", 3)
+        order_date = today.strftime("%d.%m.%Y")
+        delivery_date = (today + timedelta(days=delivery_days)).strftime("%d.%m.%Y")
+        return order_date, delivery_date, True
+    
+    # Находим ближайший день выхода заказа (сегодня или в будущем)
+    # Ищем только дни >= сегодня (не смотрим на прошедшие дни этой недели)
+    days_until_order = []
+    for order_day in order_days:
+        if order_day >= today_weekday:
+            # День на этой неделе (сегодня или позже)
+            days_until_order.append(order_day - today_weekday)
+        else:
+            # День был на прошлой неделе, считаем до следующего на следующей неделе
+            days_until_order.append(7 - (today_weekday - order_day))
+    
+    min_days_until_order = min(days_until_order)
+    order_date = today + timedelta(days=min_days_until_order)
+    
+    # Проверяем, доступен ли поставщик сегодня (заказ можно сделать ТОЛЬКО если сегодня день выхода)
+    is_available_today = min_days_until_order == 0
+    
+    # Рассчитываем дату доставки
     delivery_days = supplier_data.get("Срок доставки в магазин", 3)
-    delivery_date = (today + timedelta(days=delivery_days)).strftime("%d.%m.%Y")
+    delivery_date = order_date + timedelta(days=delivery_days)
+    
+    return order_date.strftime("%d.%m.%Y"), delivery_date.strftime("%d.%m.%Y"), is_available_today
+
+
+def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) -> tuple[str, str]:
+    """
+    Устаревшая функция для обратной совместимости.
+    Использует упрощённый расчет без учёта дней недели.
+    """
+    order_date, delivery_date, _ = get_next_supplier_delivery_date(supplier_data)
     return order_date, delivery_date
 
 
@@ -699,8 +757,13 @@ async def get_notifications(
                     "is_read": n.is_read
                 })
             
-            total_count = db.query(Notification).filter(Notification.chat_id == str(user.id)).count()
-            return {"notifications": result, "total_count": total_count}
+            # Считаем только непрочитанные для total_count
+            unread_count = db.query(Notification).filter(
+                Notification.chat_id == str(user.id),
+                Notification.is_read == False
+            ).count()
+            
+            return {"notifications": result, "total_count": unread_count}
         finally:
             db.close()
 
