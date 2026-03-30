@@ -251,6 +251,65 @@ from sqlalchemy import create_engine as raw_engine, text
 
 existing_db_engine = raw_engine(f"sqlite:///{settings.EXISTING_DB_PATH}")
 
+
+def get_next_supplier_delivery_date(supplier_data: dict):
+    """
+    Рассчитывает дату заказа и дату поставки.
+    Логика:
+    1. Берем дни выхода из БД (1=ПН, ..., 5=ПТ). 0 игнорируем.
+    2. Ищем ближайший день выхода (сегодня или в будущем).
+    3. Если сегодня подходящий день — заказываем сегодня.
+    4. Дата поставки = Дата заказа + Срок доставки.
+    """
+    today = datetime.now().date()
+    current_weekday = today.weekday() + 1  # ПН=1 ... ВС=7
+    
+    # Собираем дни выхода (фильтруем 0)
+    delivery_days = []
+    for key in ["День выхода заказа", "День выхода заказа 2", "День выхода заказа 3"]:
+        day = supplier_data.get(key)
+        if day and int(day) > 0:
+            delivery_days.append(int(day))
+    
+    if not delivery_days:
+        # Если дней нет, считаем что заказать нельзя или возвращаем дефолт
+        return None, None, False
+
+    # Ищем ближайший день
+    days_until_order = None
+    for day in sorted(delivery_days):
+        # Разница между целевым днем и текущим
+        diff = day - current_weekday
+        
+        # Если день уже прошел на этой неделе, добавляем 7 дней
+        if diff < 0:
+            diff += 7
+            
+        # Выбираем минимальное расстояние
+        if days_until_order is None or diff < days_until_order:
+            days_until_order = diff
+
+    if days_until_order is None:
+        return None, None, False
+
+    order_date = today + timedelta(days=days_until_order)
+    
+    # Получаем срок доставки
+    delivery_time = supplier_data.get("Срок доставки в магазин", 0)
+    try:
+        delivery_time = int(delivery_time)
+    except (ValueError, TypeError):
+        delivery_time = 0
+        
+    delivery_date = order_date + timedelta(days=delivery_time)
+    
+    # Доступен ли заказ сегодня (если разница 0 дней)
+    is_available = (days_until_order == 0)
+    
+    return order_date, delivery_date, is_available
+
+
+
 def calculate_order_dates(delivery_days: int, day1: int, day2: int, day3: int):
     """
     Рассчитывает дату заказа и поставки.
