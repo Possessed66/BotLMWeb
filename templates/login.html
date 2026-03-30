@@ -72,6 +72,16 @@
             margin-top: 8px;
             text-align: center;
         }
+        .success {
+            color: #16a34a;
+            font-size: 0.9rem;
+            margin-top: 8px;
+            text-align: center;
+            background-color: #f0fdf4;
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 4px solid #16a34a;
+        }
         .link {
             text-align: center;
             margin-top: 16px;
@@ -100,9 +110,15 @@
             </div>
             <button type="submit">🔑 Войти</button>
         </form>
+        
         {% if error %}
-            <div class="error">{{ error }}</div>
+            {% if "вышли" in error or "Вышли" in error %}
+                <div class="success">{{ error }}</div>
+            {% else %}
+                <div class="error">{{ error }}</div>
+            {% endif %}
         {% endif %}
+        
         <div class="link">
             <a href="/register">📝 Нет аккаунта? Зарегистрироваться</a>
         </div>

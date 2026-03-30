@@ -185,22 +185,63 @@ def decode_access_token(token: str):
         if username is None:
             return None
         return username
+    except jwt.ExpiredSignatureError:
+        # Токен истёк
+        return "EXPIRED"
     except jwt.exceptions.PyJWTError:
-        return None
+        # Другие ошибки токена (невалидный, повреждённый и т.д.)
+        return "INVALID"
 
 def get_current_user(token: str = None):
+    """
+    Возвращает объект пользователя или None.
+    Если токен истёк или невалиден, возвращает None.
+    """
     if not token:
         return None
     
+    result = decode_access_token(token)
     
-    username = decode_access_token(token)
-    if not username:
+    # Если токен истёк или невалиден
+    if result in ("EXPIRED", "INVALID"):
+        return None
+    
+    if not result:
         return None
     
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).first()
+        user = db.query(User).filter(User.username == result).first()
         return user
+    finally:
+        db.close()
+
+def get_token_status(token: str = None):
+    """
+    Проверяет статус токена и возвращает кортеж (user, status_message).
+    user: объект пользователя или None
+    status_message: сообщение о проблеме или None если всё ок
+    """
+    if not token:
+        return None, "Требуется авторизация"
+    
+    result = decode_access_token(token)
+    
+    if result == "EXPIRED":
+        return None, "Сессия истекла. Пожалуйста, войдите снова."
+    
+    if result == "INVALID":
+        return None, "Невалидная сессия. Пожалуйста, войдите снова."
+    
+    if not result:
+        return None, "Требуется авторизация"
+    
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == result).first()
+        if not user:
+            return None, "Пользователь не найден"
+        return user, None
     finally:
         db.close()
 
@@ -385,17 +426,19 @@ def process_order_queue():
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     token = request.cookies.get("access_token")
-    user = get_current_user(token)
+    user, error_msg = get_token_status(token)
     if not user:
-        return RedirectResponse(url="/login")
+        # При истёкшем или невалидном токене перенаправляем на login с сообщением
+        return RedirectResponse(url=f"/login?error_msg={error_msg}", status_code=303)
     return RedirectResponse(url="/app")
 
 @app.get("/app", response_class=HTMLResponse)
 async def app_ui(request: Request):
     token = request.cookies.get("access_token")
-    user = get_current_user(token)
+    user, error_msg = get_token_status(token)
     if not user:
-        return RedirectResponse(url="/login")
+        # При истёкшем или невалидном токене перенаправляем на login с сообщением
+        return RedirectResponse(url=f"/login?error_msg={error_msg}", status_code=303)
     return templates.TemplateResponse("app.html", {
         "request": request,
         "user": {
@@ -405,8 +448,14 @@ async def app_ui(request: Request):
     })
 
 @app.get("/login", response_class=HTMLResponse)
-async def get_login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+async def get_login_page(request: Request, error_msg: str = None):
+    """
+    Страница входа. Поддерживает параметр error_msg для отображения ошибки.
+    """
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "error": error_msg
+    })
 
 @app.post("/login")
 @limiter.limit("5/5minute")
@@ -459,11 +508,14 @@ async def login(request: Request, username: str = Form(...), password: str = For
         max_age=1800
     )
     return response
-    
+
 
 @app.get("/logout")
-async def logout(response: RedirectResponse):
-    response = RedirectResponse(url="/login", status_code=303)
+async def logout():
+    """
+    Выход из системы. Удаляет куки и перенаправляет на страницу входа.
+    """
+    response = RedirectResponse(url="/login?error_msg=Вы успешно вышли из системы", status_code=303)
     response.delete_cookie(key="access_token")
     return response
     
@@ -475,9 +527,9 @@ async def get_register_page(request: Request):
 
 @app.get("/notifications", response_class=HTMLResponse)
 async def show_notifications(request: Request, access_token: str = Cookie(None)):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url=f"/login?error_msg={error_msg}", status_code=303)
     return templates.TemplateResponse("notifications.html", {"request": request, "user": {"username": user.username}})
 
 
@@ -547,9 +599,9 @@ async def search_article(
     article: str = Form(...),
     shop: str = Form(...)
 ):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     if not article or not shop:
         raise HTTPException(status_code=400, detail="Артикул и магазин обязательны")
@@ -573,9 +625,9 @@ async def create_order(
     quantity: int = Form(...),
     order_reason: str = Form(...)
 ):
-    user = get_current_user(access_token) # <- Передаём токен из куки
+    user, error_msg = get_token_status(access_token) # <- Передаём токен из куки
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     try:
         quantity = int(quantity)
@@ -614,9 +666,9 @@ async def get_notifications(
     unread_only: bool = Query(False),
     access_token: str = Cookie(None)
 ):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     # Функция работы с БД
     def fetch_notifications():
@@ -660,9 +712,9 @@ async def mark_notifications_read(
     request: NotificationReadRequest,  # <--- Принимаем модель, а не "голый" список
     access_token: str = Cookie(None)
 ):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     # 2. Достаем список ID из модели
     notification_ids = request.notification_ids
