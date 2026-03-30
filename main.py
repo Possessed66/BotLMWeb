@@ -251,6 +251,72 @@ from sqlalchemy import create_engine as raw_engine, text
 
 existing_db_engine = raw_engine(f"sqlite:///{settings.EXISTING_DB_PATH}")
 
+def calculate_order_dates(delivery_days: int, day1: int, day2: int, day3: int):
+    """
+    Рассчитывает дату заказа и поставки.
+    Дни недели: 1=Пн, 2=Вт, 3=Ср, 4=Чт, 5=Пт. 0 игнорируется.
+    """
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    current_weekday = today.weekday() + 1  # Python: 0=Пн...4=Пт. Приводим к 1-5.
+    
+    # Собираем список рабочих дней поставщика (фильтруем 0)
+    supplier_days = sorted([d for d in [day1, day2, day3] if d > 0])
+    
+    if not supplier_days:
+        # Если дней нет вообще, считаем заказ на сегодня + доставка
+        order_date = today
+        delivery_date = today + timedelta(days=delivery_days)
+        return {
+            "order_date": order_date,
+            "delivery_date": delivery_date,
+            "is_available_today": True
+        }
+
+    # Ищем ближайший день заказа
+    days_to_wait = None
+    
+    # Проверяем дни в текущей неделе
+    for day in supplier_days:
+        # day (1-5) -> python weekday (0-4)
+        target_weekday = day - 1
+        
+        if target_weekday >= current_weekday:
+            diff = target_weekday - current_weekday
+            if days_to_wait is None or diff < days_to_wait:
+                days_to_wait = diff
+    
+    # Если в текущей неделе дней не осталось, берем первый день следующей недели
+    if days_to_wait is None:
+        first_day_next_week = supplier_days[0]
+        # Дней до конца недели + дни до целевого дня в след неделе
+        days_remaining_this_week = 5 - current_weekday # До пятницы включительно
+        days_into_next_week = first_day_next_week - 1 # От понедельника
+        days_to_wait = days_remaining_this_week + days_into_next_week + 1 # +1 т.к. след неделя
+        
+        # Более простой расчет через цикл по дням вперед
+        # Но вышеприведенная логика может быть сложной из-за выходных. 
+        # Давайте проще: перебираем следующие 7 дней
+        days_to_wait = 7 # макс ожидание до следующего раза
+        
+        for i in range(1, 8):
+            future_date = today + timedelta(days=i)
+            fut_weekday = future_date.weekday() + 1 # 1-5
+            if fut_weekday in supplier_days:
+                days_to_wait = i
+                break
+
+    order_date = today + timedelta(days=days_to_wait)
+    delivery_date = order_date + timedelta(days=delivery_days)
+    
+    is_available = (days_to_wait == 0)
+
+    return {
+        "order_date": order_date,
+        "delivery_date": delivery_date,
+        "is_available_today": is_available
+    }
+    
+
 def get_product_info_from_existing_db(article: str, shop: str) -> Optional[Dict[str, Any]]:
     full_key_exact = f"{article}{shop}"
     with existing_db_engine.connect() as conn:
@@ -315,63 +381,6 @@ def get_supplier_dates_from_existing_db(supplier_id: str, shop: str) -> Dict[str
             logger.warning(f"Таблица '{table_name}' не найдена или ошибка запроса.")
             return {}
     return {}
-
-def get_next_supplier_delivery_date(supplier_data: Dict[str, Any]) -> tuple[str, str, bool]:
-    """
-    Рассчитывает следующую доступную дату заказа от поставщика с учётом дней недели.
-    
-    Возвращает: (order_date, delivery_date, is_available)
-    - order_date: дата когда можно сделать заказ
-    - delivery_date: дата доставки в магазин
-    - is_available: доступен ли поставщик для заказа сегодня
-    
-    Примечание: Дни выхода заказа в БД хранятся как числа 0-6 (0=Пн, 6=Вс)
-    """
-    today = datetime.now().date()
-    today_weekday = today.weekday()  # 0=Пн, 1=Вт, 2=Ср, 3=Чт, 4=Пт, 5=Сб, 6=Вс
-    
-    # Получаем дни выхода заказа из БД (уже числа 0-6)
-    order_days = []
-    for field in ["День выхода заказа", "День выхода заказа 2", "День выхода заказа 3"]:
-        day_value = supplier_data.get(field)
-        if day_value is not None:
-            try:
-                # В БД уже числа, просто преобразуем в int
-                day_num = int(day_value)
-                if 0 <= day_num <= 6:
-                    order_days.append(day_num)
-            except (ValueError, TypeError):
-                continue
-    
-    # Если дней выхода не найдено, используем дефолт (заказ сегодня)
-    if not order_days:
-        delivery_days = supplier_data.get("Срок доставки в магазин", 3)
-        order_date = today.strftime("%d.%m.%Y")
-        delivery_date = (today + timedelta(days=delivery_days)).strftime("%d.%m.%Y")
-        return order_date, delivery_date, True
-    
-    # Находим ближайший день выхода заказа (сегодня или в будущем)
-    # Ищем только дни >= сегодня (не смотрим на прошедшие дни этой недели)
-    days_until_order = []
-    for order_day in order_days:
-        if order_day >= today_weekday:
-            # День на этой неделе (сегодня или позже)
-            days_until_order.append(order_day - today_weekday)
-        else:
-            # День был на прошлой неделе, считаем до следующего на следующей неделе
-            days_until_order.append(7 - (today_weekday - order_day))
-    
-    min_days_until_order = min(days_until_order)
-    order_date = today + timedelta(days=min_days_until_order)
-    
-    # Проверяем, доступен ли поставщик сегодня (заказ можно сделать ТОЛЬКО если сегодня день выхода)
-    is_available_today = min_days_until_order == 0
-    
-    # Рассчитываем дату доставки
-    delivery_days = supplier_data.get("Срок доставки в магазин", 3)
-    delivery_date = order_date + timedelta(days=delivery_days)
-    
-    return order_date.strftime("%d.%m.%Y"), delivery_date.strftime("%d.%m.%Y"), is_available_today
 
 
 def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) -> tuple[str, str]:
@@ -664,11 +673,28 @@ async def search_article(
     if not article or not shop:
         raise HTTPException(status_code=400, detail="Артикул и магазин обязательны")
 
-    
+    # Получаем сырые данные из БД
     product_info = await run_in_threadpool(get_product_info_from_existing_db, article, shop)
     
     if product_info:
+        # === НОВАЯ ЛОГИКА РАСЧЕТА ДАТ ===
+        # product_info теперь содержит ключи: 'delivery_days', 'day1', 'day2', 'day3'
+        
+        calculated_dates = calculate_order_dates(
+            delivery_days=product_info.get('delivery_days', 0),
+            day1=product_info.get('day1', 0),
+            day2=product_info.get('day2', 0),
+            day3=product_info.get('day3', 0)
+        )
+        
+        # Добавляем рассчитанные даты в ответ
+        product_info['order_date_str'] = calculated_dates['order_date'].strftime("%d.%m.%Y")
+        product_info['delivery_date_str'] = calculated_dates['delivery_date'].strftime("%d.%m.%Y")
+        product_info['is_available_today'] = calculated_dates['is_available_today']
+        
+        
         return {"found": True, "data": product_info}
+    
     return {"found": False, "message": f"Артикул {article} не найден для магазина {shop}"}
 
 
