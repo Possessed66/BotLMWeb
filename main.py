@@ -370,9 +370,9 @@ def calculate_order_dates(delivery_days: int, day1: int, day2: int, day3: int):
     is_available = (days_to_wait == 0)
 
     return {
-        "order_date": order_date,
-        "delivery_date": delivery_date,
-        "is_available_today": is_available
+        "order_date": order_date.strftime("%d.%m.%Y"),
+        "delivery_date": delivery_date.strftime("%d.%m.%Y"),
+        "is_available_today": (days_to_add == 0)
     }
     
 
@@ -736,21 +736,19 @@ async def search_article(
     product_info = await run_in_threadpool(get_product_info_from_existing_db, article, shop)
     
     if product_info:
-        # === НОВАЯ ЛОГИКА РАСЧЕТА ДАТ ===
-        # product_info теперь содержит ключи: 'delivery_days', 'day1', 'day2', 'day3'
+        # Извлекаем данные для расчета
+        delivery_days = product_info.get('delivery_days', 0)
+        day1 = product_info.get('day1', 0)
+        day2 = product_info.get('day2', 0)
+        day3 = product_info.get('day3', 0)
         
-        calculated_dates = calculate_order_dates(
-            delivery_days=product_info.get('delivery_days', 0),
-            day1=product_info.get('day1', 0),
-            day2=product_info.get('day2', 0),
-            day3=product_info.get('day3', 0)
-        )
+        # Считаем даты
+        dates = calculate_order_dates(delivery_days, day1, day2, day3)
         
-        # Добавляем рассчитанные даты в ответ
-        product_info['order_date_str'] = calculated_dates['order_date'].strftime("%d.%m.%Y")
-        product_info['delivery_date_str'] = calculated_dates['delivery_date'].strftime("%d.%m.%Y")
-        product_info['is_available_today'] = calculated_dates['is_available_today']
-        
+        # Добавляем в ответ ТОЛЬКО нужные поля в правильном формате
+        product_info['order_date'] = dates['order_date']
+        product_info['delivery_date'] = dates['delivery_date']
+        product_info['is_available_today'] = dates['is_available_today']
         
         return {"found": True, "data": product_info}
     
