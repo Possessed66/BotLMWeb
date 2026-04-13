@@ -312,8 +312,9 @@
             const count = data.total_count || 0;
             const badge = document.getElementById('unread-badge');
             
+            // Показываем бейдж ТОЛЬКО если есть непрочитанные уведомления
             if (count > 0) {
-                badge.textContent = count;
+                badge.textContent = count > 99 ? '99+' : count; // Ограничиваем максимум 99+
                 badge.classList.remove('hidden');
             } else {
                 badge.classList.add('hidden');
@@ -324,7 +325,7 @@
         }
     }
 
-    // === POLLING: Обновление счетчика раз в минуту ===
+    // === POLLING: Обновление счетчика каждую минуту + при загрузке страницы ===
     setInterval(updateUnreadCount, 60000); 
 
     // === ФУНКЦИЯ: Загрузка уведомлений ===
@@ -459,6 +460,8 @@
             const controls = button.closest('.notification-controls');
             if (controls) controls.remove(); // Удаляем кнопку
         }
+        // Обновляем счетчик сразу после отметки
+        updateUnreadCount();
     }
 
     async function markNotificationsAsRead(ids) {
@@ -605,6 +608,11 @@
         document.getElementById('newOrderBtn').classList.add('hidden');
         document.querySelector('#orderForm button[type="submit"]').style.display = 'block';
         document.getElementById('orderForm').reset();
+        
+        // Сбрасываем форму заказа в видимое состояние (на случай если было сообщение о недоступности)
+        document.getElementById('orderForm').style.display = 'block';
+        const oldMsg = document.getElementById('unavailableMessage');
+        if (oldMsg) oldMsg.remove();
     }
 
     // Инициализация

@@ -185,22 +185,63 @@ def decode_access_token(token: str):
         if username is None:
             return None
         return username
+    except jwt.ExpiredSignatureError:
+        # Токен истёк
+        return "EXPIRED"
     except jwt.exceptions.PyJWTError:
-        return None
+        # Другие ошибки токена (невалидный, повреждённый и т.д.)
+        return "INVALID"
 
 def get_current_user(token: str = None):
+    """
+    Возвращает объект пользователя или None.
+    Если токен истёк или невалиден, возвращает None.
+    """
     if not token:
         return None
     
+    result = decode_access_token(token)
     
-    username = decode_access_token(token)
-    if not username:
+    # Если токен истёк или невалиден
+    if result in ("EXPIRED", "INVALID"):
+        return None
+    
+    if not result:
         return None
     
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).first()
+        user = db.query(User).filter(User.username == result).first()
         return user
+    finally:
+        db.close()
+
+def get_token_status(token: str = None):
+    """
+    Проверяет статус токена и возвращает кортеж (user, status_message).
+    user: объект пользователя или None
+    status_message: сообщение о проблеме или None если всё ок
+    """
+    if not token:
+        return None, "Требуется авторизация"
+    
+    result = decode_access_token(token)
+    
+    if result == "EXPIRED":
+        return None, "Сессия истекла. Пожалуйста, войдите снова."
+    
+    if result == "INVALID":
+        return None, "Невалидная сессия. Пожалуйста, войдите снова."
+    
+    if not result:
+        return None, "Требуется авторизация"
+    
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == result).first()
+        if not user:
+            return None, "Пользователь не найден"
+        return user, None
     finally:
         db.close()
 
@@ -209,6 +250,131 @@ def get_current_user(token: str = None):
 from sqlalchemy import create_engine as raw_engine, text
 
 existing_db_engine = raw_engine(f"sqlite:///{settings.EXISTING_DB_PATH}")
+
+
+def get_next_supplier_delivery_date(supplier_data: dict):
+    """
+    Рассчитывает дату заказа и дату поставки.
+    Логика:
+    1. Берем дни выхода из БД (1=ПН, ..., 5=ПТ). 0 игнорируем.
+    2. Ищем ближайший день выхода (сегодня или в будущем).
+    3. Если сегодня подходящий день — заказываем сегодня.
+    4. Дата поставки = Дата заказа + Срок доставки.
+    """
+    today = datetime.now().date()
+    current_weekday = today.weekday() + 1  # ПН=1 ... ВС=7
+    
+    # Собираем дни выхода (фильтруем 0)
+    delivery_days = []
+    for key in ["День выхода заказа", "День выхода заказа 2", "День выхода заказа 3"]:
+        day = supplier_data.get(key)
+        if day and int(day) > 0:
+            delivery_days.append(int(day))
+    
+    if not delivery_days:
+        # Если дней нет, считаем что заказать нельзя или возвращаем дефолт
+        return None, None, False
+
+    # Ищем ближайший день
+    days_until_order = None
+    for day in sorted(delivery_days):
+        # Разница между целевым днем и текущим
+        diff = day - current_weekday
+        
+        # Если день уже прошел на этой неделе, добавляем 7 дней
+        if diff < 0:
+            diff += 7
+            
+        # Выбираем минимальное расстояние
+        if days_until_order is None or diff < days_until_order:
+            days_until_order = diff
+
+    if days_until_order is None:
+        return None, None, False
+
+    order_date = today + timedelta(days=days_until_order)
+    
+    # Получаем срок доставки
+    delivery_time = supplier_data.get("Срок доставки в магазин", 0)
+    try:
+        delivery_time = int(delivery_time)
+    except (ValueError, TypeError):
+        delivery_time = 0
+        
+    delivery_date = order_date + timedelta(days=delivery_time)
+    
+    # Доступен ли заказ сегодня (если разница 0 дней)
+    is_available = (days_until_order == 0)
+    
+    return order_date, delivery_date, is_available
+
+
+
+def calculate_order_dates(delivery_days: int, day1: int, day2: int, day3: int):
+    """
+    Рассчитывает дату заказа и поставки.
+    Дни недели: 1=Пн, 2=Вт, 3=Ср, 4=Чт, 5=Пт. 0 игнорируется.
+    """
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    current_weekday = today.weekday() + 1  # Python: 0=Пн...4=Пт. Приводим к 1-5.
+    
+    # Собираем список рабочих дней поставщика (фильтруем 0)
+    supplier_days = sorted([d for d in [day1, day2, day3] if d > 0])
+    
+    if not supplier_days:
+        # Если дней нет вообще, считаем заказ на сегодня + доставка
+        order_date = today
+        delivery_date = today + timedelta(days=delivery_days)
+        return {
+            "order_date": order_date,
+            "delivery_date": delivery_date,
+            "is_available_today": True
+        }
+
+    # Ищем ближайший день заказа
+    days_to_wait = None
+    
+    # Проверяем дни в текущей неделе
+    for day in supplier_days:
+        # day (1-5) -> python weekday (0-4)
+        target_weekday = day - 1
+        
+        if target_weekday >= current_weekday:
+            diff = target_weekday - current_weekday
+            if days_to_wait is None or diff < days_to_wait:
+                days_to_wait = diff
+    
+    # Если в текущей неделе дней не осталось, берем первый день следующей недели
+    if days_to_wait is None:
+        first_day_next_week = supplier_days[0]
+        # Дней до конца недели + дни до целевого дня в след неделе
+        days_remaining_this_week = 5 - current_weekday # До пятницы включительно
+        days_into_next_week = first_day_next_week - 1 # От понедельника
+        days_to_wait = days_remaining_this_week + days_into_next_week + 1 # +1 т.к. след неделя
+        
+        # Более простой расчет через цикл по дням вперед
+        # Но вышеприведенная логика может быть сложной из-за выходных. 
+        # Давайте проще: перебираем следующие 7 дней
+        days_to_wait = 7 # макс ожидание до следующего раза
+        
+        for i in range(1, 8):
+            future_date = today + timedelta(days=i)
+            fut_weekday = future_date.weekday() + 1 # 1-5
+            if fut_weekday in supplier_days:
+                days_to_wait = i
+                break
+
+    order_date = today + timedelta(days=days_to_wait)
+    delivery_date = order_date + timedelta(days=delivery_days)
+    
+    is_available = (days_to_wait == 0)
+
+    return {
+        "order_date": order_date.strftime("%d.%m.%Y"),
+        "delivery_date": delivery_date.strftime("%d.%m.%Y"),
+        "is_available_today": (days_to_add == 0)
+    }
+    
 
 def get_product_info_from_existing_db(article: str, shop: str) -> Optional[Dict[str, Any]]:
     full_key_exact = f"{article}{shop}"
@@ -237,7 +403,7 @@ def get_product_info_from_existing_db(article: str, shop: str) -> Optional[Dict[
         if row:
             supplier_id = row['supplier_code']
             supplier_data = get_supplier_dates_from_existing_db(supplier_id, shop)
-            order_date, delivery_date = calculate_delivery_date_from_supplier_data(supplier_data)
+            order_date, delivery_date, is_available = get_next_supplier_delivery_date(supplier_data)
 
             return {
                 'Артикул': row['article_code'],
@@ -275,12 +441,13 @@ def get_supplier_dates_from_existing_db(supplier_id: str, shop: str) -> Dict[str
             return {}
     return {}
 
+
 def calculate_delivery_date_from_supplier_data(supplier_data: Dict[str, Any]) -> tuple[str, str]:
-    # Упрощённый расчет, как в старом коде
-    today = datetime.now().date()
-    order_date = today.strftime("%d.%m.%Y")
-    delivery_days = supplier_data.get("Срок доставки в магазин", 3)
-    delivery_date = (today + timedelta(days=delivery_days)).strftime("%d.%m.%Y")
+    """
+    Устаревшая функция для обратной совместимости.
+    Использует упрощённый расчет без учёта дней недели.
+    """
+    order_date, delivery_date, _ = get_next_supplier_delivery_date(supplier_data)
     return order_date, delivery_date
 
 
@@ -385,17 +552,19 @@ def process_order_queue():
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     token = request.cookies.get("access_token")
-    user = get_current_user(token)
+    user, error_msg = get_token_status(token)
     if not user:
-        return RedirectResponse(url="/login")
+        # При истёкшем или невалидном токене перенаправляем на login с сообщением
+        return RedirectResponse(url=f"/login?error_msg={error_msg}", status_code=303)
     return RedirectResponse(url="/app")
 
 @app.get("/app", response_class=HTMLResponse)
 async def app_ui(request: Request):
     token = request.cookies.get("access_token")
-    user = get_current_user(token)
+    user, error_msg = get_token_status(token)
     if not user:
-        return RedirectResponse(url="/login")
+        # При истёкшем или невалидном токене перенаправляем на login с сообщением
+        return RedirectResponse(url=f"/login?error_msg={error_msg}", status_code=303)
     return templates.TemplateResponse("app.html", {
         "request": request,
         "user": {
@@ -405,8 +574,14 @@ async def app_ui(request: Request):
     })
 
 @app.get("/login", response_class=HTMLResponse)
-async def get_login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+async def get_login_page(request: Request, error_msg: str = None):
+    """
+    Страница входа. Поддерживает параметр error_msg для отображения ошибки.
+    """
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "error": error_msg
+    })
 
 @app.post("/login")
 @limiter.limit("5/5minute")
@@ -459,11 +634,14 @@ async def login(request: Request, username: str = Form(...), password: str = For
         max_age=1800
     )
     return response
-    
+
 
 @app.get("/logout")
-async def logout(response: RedirectResponse):
-    response = RedirectResponse(url="/login", status_code=303)
+async def logout():
+    """
+    Выход из системы. Удаляет куки и перенаправляет на страницу входа.
+    """
+    response = RedirectResponse(url="/login?error_msg=Вы успешно вышли из системы", status_code=303)
     response.delete_cookie(key="access_token")
     return response
     
@@ -475,9 +653,9 @@ async def get_register_page(request: Request):
 
 @app.get("/notifications", response_class=HTMLResponse)
 async def show_notifications(request: Request, access_token: str = Cookie(None)):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url=f"/login?error_msg={error_msg}", status_code=303)
     return templates.TemplateResponse("notifications.html", {"request": request, "user": {"username": user.username}})
 
 
@@ -547,18 +725,33 @@ async def search_article(
     article: str = Form(...),
     shop: str = Form(...)
 ):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     if not article or not shop:
         raise HTTPException(status_code=400, detail="Артикул и магазин обязательны")
 
-    
+    # Получаем сырые данные из БД
     product_info = await run_in_threadpool(get_product_info_from_existing_db, article, shop)
     
     if product_info:
+        # Извлекаем данные для расчета
+        delivery_days = product_info.get('delivery_days', 0)
+        day1 = product_info.get('day1', 0)
+        day2 = product_info.get('day2', 0)
+        day3 = product_info.get('day3', 0)
+        
+        # Считаем даты
+        dates = calculate_order_dates(delivery_days, day1, day2, day3)
+        
+        # Добавляем в ответ ТОЛЬКО нужные поля в правильном формате
+        product_info['order_date'] = dates['order_date']
+        product_info['delivery_date'] = dates['delivery_date']
+        product_info['is_available_today'] = dates['is_available_today']
+        
         return {"found": True, "data": product_info}
+    
     return {"found": False, "message": f"Артикул {article} не найден для магазина {shop}"}
 
 
@@ -573,9 +766,9 @@ async def create_order(
     quantity: int = Form(...),
     order_reason: str = Form(...)
 ):
-    user = get_current_user(access_token) # <- Передаём токен из куки
+    user, error_msg = get_token_status(access_token) # <- Передаём токен из куки
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     try:
         quantity = int(quantity)
@@ -614,9 +807,9 @@ async def get_notifications(
     unread_only: bool = Query(False),
     access_token: str = Cookie(None)
 ):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     # Функция работы с БД
     def fetch_notifications():
@@ -647,8 +840,13 @@ async def get_notifications(
                     "is_read": n.is_read
                 })
             
-            total_count = db.query(Notification).filter(Notification.chat_id == str(user.id)).count()
-            return {"notifications": result, "total_count": total_count}
+            # Считаем только непрочитанные для total_count
+            unread_count = db.query(Notification).filter(
+                Notification.chat_id == str(user.id),
+                Notification.is_read == False
+            ).count()
+            
+            return {"notifications": result, "total_count": unread_count}
         finally:
             db.close()
 
@@ -660,9 +858,9 @@ async def mark_notifications_read(
     request: NotificationReadRequest,  # <--- Принимаем модель, а не "голый" список
     access_token: str = Cookie(None)
 ):
-    user = get_current_user(access_token)
+    user, error_msg = get_token_status(access_token)
     if not user:
-        raise HTTPException(status_code=401, detail="Не авторизован")
+        raise HTTPException(status_code=401, detail=error_msg)
 
     # 2. Достаем список ID из модели
     notification_ids = request.notification_ids
